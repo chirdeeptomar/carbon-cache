@@ -24,7 +24,7 @@ message ListCachesResponse { repeated CacheInfo caches = 1; }
 message DescribeCacheRequest { string name = 1; }
 message DescribeCacheResponse { CacheInfo info = 1; }
 
-service CarbonAdminService {
+service CarbonAdminOperations {
   rpc CreateCache(CreateCacheRequest) returns (CreateCacheResponse);
   rpc DropCache(DropCacheRequest) returns (DropCacheResponse);
   rpc ListCaches(ListCachesRequest) returns (ListCachesResponse);
@@ -38,7 +38,7 @@ message GetResponse { bool found = 1; bytes value = 2; uint64 ttl_ms_remaining =
 message DeleteRequest { string cache = 1; bytes key = 2; }
 message DeleteResponse { bool deleted = 1; }
 
-service CarbonDataService {
+service CarbonCacheOperations {
   rpc Put (PutRequest) returns (PutResponse);
   rpc Get (GetRequest) returns (GetResponse);
   rpc Delete (DeleteRequest) returns (DeleteResponse);

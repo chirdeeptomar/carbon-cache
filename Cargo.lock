@@ -96,20 +96,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
 
 [[package]]
-name = "application"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "env_logger",
- "fake",
- "log",
- "rand 0.9.2",
- "shared",
- "uuid",
-]
-
-[[package]]
 name = "arc-swap"
 version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -253,6 +239,21 @@ name = "bytes"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
+
+[[package]]
+name = "carbon"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "env_logger",
+ "fake",
+ "log",
+ "rand 0.9.2",
+ "shared",
+ "tokio",
+ "uuid",
+]
 
 [[package]]
 name = "cc"
@@ -1622,7 +1623,7 @@ dependencies = [
 name = "server-grpc"
 version = "0.1.0"
 dependencies = [
- "application",
+ "carbon",
  "chrono",
  "env_logger",
  "fake",
@@ -1630,6 +1631,7 @@ dependencies = [
  "prost",
  "rand 0.9.2",
  "shared",
+ "storage-engine",
  "tokio",
  "tonic",
  "tonic-build",
@@ -1718,8 +1720,8 @@ name = "storage-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "application",
  "async-trait",
+ "carbon",
  "chrono",
  "env_logger",
  "fake",

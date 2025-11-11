@@ -14,7 +14,7 @@ rand = "0.9.2"
 foyer = "0.20.1"
 tokio = { version = "1.19.2", features = ["macros", "rt-multi-thread"] }
 
-application = { path = "../application" }
+carbon = { path = "../carbon" }
 shared = { path = "../shared" }
 
 [dependencies.uuid]

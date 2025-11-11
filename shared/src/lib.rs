@@ -1,16 +1,18 @@
 // shared/src/lib.rs
-pub type Key = Vec<u8>;
-pub type Value = Vec<u8>;
 
 #[derive(thiserror::Error, Debug)]
-pub enum CacheError {
+pub enum Error {
     #[error("not found")]
     NotFound,
+    #[error("cache not found: {0}")]
+    CacheNotFound(String),
     #[error("internal: {0}")]
     Internal(String),
 }
 
-pub type Result<T> = std::result::Result<T, CacheError>;
+// Keep old alias for backwards compatibility
+pub type CacheError = Error;
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct TtlMs(pub u64);
