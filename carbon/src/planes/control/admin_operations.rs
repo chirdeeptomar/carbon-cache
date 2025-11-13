@@ -13,20 +13,20 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// CacheManager orchestrates cache operations using injected storage implementations
+#[derive(Clone)]
 pub struct CacheManager<K, V>
 where
     K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    V: Debug + Send + Sync + 'static,
 {
     // Maps cache name -> storage implementation
-    caches: Arc<RwLock<HashMap<String, Arc<dyn CacheStore<K, V>>>>>,
-    _phantom: std::marker::PhantomData<(K, V)>,
+    cache_registry: Arc<RwLock<HashMap<String, Arc<dyn CacheStore<K, V>>>>>,
 }
 
-impl<K, V> std::fmt::Debug for CacheManager<K, V>
+impl<K, V> Debug for CacheManager<K, V>
 where
     K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    V: Debug + Send + Sync + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CacheManager")
@@ -35,34 +35,20 @@ where
     }
 }
 
-impl<K, V> Clone for CacheManager<K, V>
-where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
-{
-    fn clone(&self) -> Self {
-        Self {
-            caches: self.caches.clone(),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
 impl<K, V> CacheManager<K, V>
 where
     K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    V: Debug + Send + Sync + 'static,
 {
     pub fn new() -> Self {
         Self {
-            caches: Arc::new(RwLock::new(HashMap::new())),
-            _phantom: std::marker::PhantomData,
+            cache_registry: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     /// Get a cache by name
     pub async fn get_cache(&self, name: &str) -> Option<Arc<dyn CacheStore<K, V>>> {
-        let caches = self.caches.read().await;
+        let caches = self.cache_registry.read().await;
         caches.get(name).cloned()
     }
 
@@ -72,7 +58,7 @@ where
         name: String,
         store: Arc<dyn CacheStore<K, V>>,
     ) -> Result<()> {
-        let mut caches = self.caches.write().await;
+        let mut caches = self.cache_registry.write().await;
         caches.insert(name, store);
         Ok(())
     }
@@ -97,7 +83,7 @@ where
     async fn create_cache(&self, config: CacheConfig) -> Result<CreateCacheResponse> {
         // Check if cache already exists
         {
-            let caches = self.caches.read().await;
+            let caches = self.cache_registry.read().await;
             if caches.contains_key(&config.name) {
                 return Ok(CreateCacheResponse::new(
                     false,
@@ -105,14 +91,6 @@ where
                 ));
             }
         } // Read lock automatically released here
-
-        // Note: Actual Foyer cache creation happens in the adapter layer (storage-engine)
-        // The gRPC server should inject the cache store implementation
-        // For now, we just track that the cache was requested
-
-        // TODO: This should be injected from the gRPC layer
-        // Example: let foyer_cache = FoyerCache::new(config.mem_bytes as usize);
-        //          self.register_cache(config.name.clone(), Arc::new(foyer_cache)).await?;
 
         Ok(CreateCacheResponse::new(
             true,
@@ -124,13 +102,13 @@ where
     }
 
     async fn drop_cache(&self, name: &str) -> Result<DropCacheResponse> {
-        let mut caches = self.caches.write().await;
+        let mut caches = self.cache_registry.write().await;
         let dropped = caches.remove(name).is_some();
         Ok(DropCacheResponse::new(dropped))
     }
 
     async fn list_caches(&self) -> Result<ListCachesResponse> {
-        let caches = self.caches.read().await;
+        let caches = self.cache_registry.read().await;
         let cache_infos: Vec<CacheInfo> = caches
             .keys()
             .map(|name| {
@@ -149,7 +127,7 @@ where
     }
 
     async fn describe_cache(&self, name: &str) -> Result<DescribeCacheResponse> {
-        let caches = self.caches.read().await;
+        let caches = self.cache_registry.read().await;
         if caches.contains_key(name) {
             Ok(DescribeCacheResponse::new(CacheInfo::from_config(
                 crate::domain::CacheConfig::new(

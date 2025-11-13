@@ -1,4 +1,5 @@
 pub mod config;
+pub mod transformers;
 use crate::generated::carbon_admin_operations_server::CarbonAdminOperations;
 use crate::generated::carbon_cache_operations_server::CarbonCacheOperations;
 use crate::generated::{
@@ -12,6 +13,8 @@ use carbon::planes::data::operation::CacheOperations;
 use carbon::planes::data::CacheOperationsService;
 use carbon::ports::AdminOperations;
 use log::info;
+use storage_engine::FoyerCache;
+use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
 #[derive(Debug)]
@@ -128,7 +131,7 @@ impl CarbonAdminOperations for CarbonServer {
             if proto_config.disk_path.is_empty() {
                 None
             } else {
-                Some(proto_config.disk_path)
+                Some(proto_config.disk_path.clone())
             },
             proto_config.shards,
             EvictionPolicy::try_from(proto_config.policy).unwrap_or(EvictionPolicy::TinyLfu),
@@ -136,26 +139,41 @@ impl CarbonAdminOperations for CarbonServer {
             Some(proto_config.max_value_bytes),
         );
 
-        // Create a Foyer cache instance (adapter layer)
-        let foyer_cache = storage_engine::FoyerCache::new(cache_config.mem_bytes as usize);
-
-        // Register it with the cache manager
-        if let Err(e) = self
-            .cache_manager
-            .register_cache(proto_config.name.clone(), std::sync::Arc::new(foyer_cache))
-            .await
-        {
-            return Err(Status::internal(format!("Failed to register cache: {}", e)));
-        }
-
-        // Call the admin operation
-        match self.cache_manager.create_cache(cache_config).await {
+        // Call the admin operation to validate/check if cache exists
+        match self.cache_manager.create_cache(cache_config.clone()).await {
             Ok(result) => {
-                let response = CreateCacheResponse {
-                    created: result.created,
-                    message: result.message,
-                };
-                Ok(Response::new(response))
+                if result.created {
+                    // Actually create the storage layer
+                    let foyer_cache = FoyerCache::new(
+                        proto_config.name.clone(),
+                        proto_config.mem_bytes as usize,
+                    );
+
+                    // Register the cache with the manager
+                    if let Err(e) = self
+                        .cache_manager
+                        .register_cache(proto_config.name.clone(), Arc::new(foyer_cache))
+                        .await
+                    {
+                        return Err(Status::internal(format!(
+                            "Failed to register cache: {}",
+                            e
+                        )));
+                    }
+
+                    let response = CreateCacheResponse {
+                        created: true,
+                        message: format!("Cache '{}' created successfully", proto_config.name),
+                    };
+                    Ok(Response::new(response))
+                } else {
+                    // Cache already exists
+                    let response = CreateCacheResponse {
+                        created: false,
+                        message: result.message,
+                    };
+                    Ok(Response::new(response))
+                }
             }
             Err(e) => Err(Status::internal(format!("Failed to create cache: {}", e))),
         }
@@ -166,8 +184,18 @@ impl CarbonAdminOperations for CarbonServer {
         request: Request<DropCacheRequest>,
     ) -> Result<Response<DropCacheResponse>, Status> {
         info!("Got a DROP_CACHE request: {:?}", request);
-        let response = DropCacheResponse::default();
-        Ok(Response::new(response))
+        let cache_name = request.into_inner().name;
+
+        // Call the admin operation to drop the cache
+        match self.cache_manager.drop_cache(&cache_name).await {
+            Ok(result) => {
+                let response = DropCacheResponse {
+                    dropped: result.dropped,
+                };
+                Ok(Response::new(response))
+            }
+            Err(e) => Err(Status::internal(format!("Failed to drop cache: {}", e))),
+        }
     }
 
     async fn list_caches(
@@ -175,8 +203,14 @@ impl CarbonAdminOperations for CarbonServer {
         request: Request<ListCachesRequest>,
     ) -> Result<Response<ListCachesResponse>, Status> {
         info!("Got a LIST_CACHES request: {:?}", request);
-        let response = ListCachesResponse::default();
-        Ok(Response::new(response))
+
+        match self.cache_manager.list_caches().await {
+            Ok(domain_response) => {
+                let grpc_response = transformers::domain_list_caches_to_grpc(domain_response);
+                Ok(Response::new(grpc_response))
+            }
+            Err(e) => Err(Status::internal(format!("Failed to list caches: {}", e))),
+        }
     }
 
     async fn describe_cache(
@@ -184,7 +218,18 @@ impl CarbonAdminOperations for CarbonServer {
         request: Request<DescribeCacheRequest>,
     ) -> Result<Response<DescribeCacheResponse>, Status> {
         info!("Got a DESCRIBE_CACHE request: {:?}", request);
-        let response = DescribeCacheResponse::default();
-        Ok(Response::new(response))
+        let cache_name = request.into_inner().name;
+
+        // Call the admin operation to describe the cache
+        match self.cache_manager.describe_cache(&cache_name).await {
+            Ok(domain_response) => {
+                let grpc_response = transformers::domain_describe_cache_to_grpc(domain_response);
+                Ok(Response::new(grpc_response))
+            }
+            Err(shared::Error::CacheNotFound(name)) => {
+                Err(Status::not_found(format!("Cache '{}' not found", name)))
+            }
+            Err(e) => Err(Status::internal(format!("Failed to describe cache: {}", e))),
+        }
     }
 }

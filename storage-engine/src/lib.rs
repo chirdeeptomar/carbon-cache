@@ -21,8 +21,8 @@ where
     V: Debug + Send + Sync + Clone + 'static,
 {
     /// Create a new Foyer in-memory cache with the given memory capacity in bytes
-    pub fn new(mem_bytes: usize) -> Self {
-        let cache = CacheBuilder::new(mem_bytes).build();
+    pub fn new(name: String, mem_bytes: usize) -> Self {
+        let cache = CacheBuilder::new(mem_bytes).with_name(name).build();
 
         Self {
             cache: Arc::new(cache),
@@ -79,7 +79,7 @@ where
     }
 }
 
-impl<K, V> std::fmt::Debug for FoyerCache<K, V>
+impl<K, V> Debug for FoyerCache<K, V>
 where
     K: Debug + Hash + Eq + Send + Sync + 'static,
     V: Debug + Send + Sync + Clone + 'static,
@@ -97,7 +97,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_foyer_cache_put_and_get() {
-        let cache = FoyerCache::new(1024 * 1024); // 1MB
+        let cache = FoyerCache::new("test".to_string(),1024 * 1024); // 1MB
 
         // Put a value
         let key = "hello";
@@ -114,7 +114,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_foyer_cache_delete() {
-        let cache = FoyerCache::new(1024 * 1024);
+        let cache = FoyerCache::new("test".to_string(), 1024 * 1024);
 
         let key = "test_key";
         let value = "test_value";
@@ -134,7 +134,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_foyer_cache_get_nonexistent() {
-        let cache: FoyerCache<&str, &str> = FoyerCache::new(1024 * 1024);
+        let cache: FoyerCache<&str, &str> = FoyerCache::new("test".to_string(),1024 * 1024);
 
         // Try to get a key that doesn't exist
         let result = cache.get(&"nonexistent").await;
@@ -144,7 +144,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_foyer_cache_overwrite() {
-        let cache = FoyerCache::new(1024 * 1024);
+        let cache = FoyerCache::new("test".to_string(), 1024 * 1024);
 
         let key = "key";
 
@@ -161,7 +161,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_foyer_cache_with_ttl() {
-        let cache = FoyerCache::new(1024 * 1024);
+        let cache = FoyerCache::new("test".to_string(),1024 * 1024);
 
         let key = "ttl_key";
         let value = "ttl_value";
