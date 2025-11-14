@@ -1,11 +1,14 @@
+use std::collections::HashMap;
+
 pub mod request {}
 
 pub mod response {
 
     pub mod admin {
         use crate::domain::CacheInfo;
+        use serde::Serialize;
 
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, Serialize)]
         pub struct CreateCacheResponse {
             pub created: bool,
             pub message: String,
@@ -20,7 +23,7 @@ pub mod response {
             }
         }
 
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, Serialize)]
         pub struct DropCacheResponse {
             pub dropped: bool,
         }
@@ -31,7 +34,7 @@ pub mod response {
             }
         }
 
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, Serialize)]
         pub struct ListCachesResponse {
             pub caches: Vec<CacheInfo>,
         }
@@ -42,7 +45,7 @@ pub mod response {
             }
         }
 
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, Serialize)]
         pub struct DescribeCacheResponse {
             pub info: CacheInfo,
         }
@@ -93,7 +96,7 @@ pub mod response {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct CacheInfo {
     pub config: CacheConfig,
     pub keys_estimate: u64,
@@ -110,15 +113,22 @@ impl CacheInfo {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CacheConfig {
     pub name: String,                 // unique cache name
     pub mem_bytes: u64,               // RAM budget
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub disk_path: Option<String>,    // NVMe dir (optional -> memory-only)
     pub shards: u32,                  // default: 2 * cores
     pub policy: EvictionPolicy,       // default: TINYLFU
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_ttl_ms: Option<u64>,  // 0 = no default TTL
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_value_bytes: Option<u64>, // guardrails
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,  // human-readable description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<HashMap<String, String>>, // metadata tags for categorization
 }
 
 impl CacheConfig {
@@ -130,6 +140,8 @@ impl CacheConfig {
         policy: EvictionPolicy,
         default_ttl_ms: Option<u64>,
         max_value_bytes: Option<u64>,
+        description: Option<String>,
+        tags: Option<HashMap<String, String>>,
     ) -> Self {
         Self {
             name: name.into(),
@@ -139,12 +151,26 @@ impl CacheConfig {
             policy,
             default_ttl_ms,
             max_value_bytes,
+            description,
+            tags,
         }
+    }
+
+    /// Builder method to add description
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Builder method to add tags
+    pub fn with_tags(mut self, tags: HashMap<String, String>) -> Self {
+        self.tags = Some(tags);
+        self
     }
 }
 
 #[repr(i8)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub enum EvictionPolicy {
     Unspecified,
     Lru,

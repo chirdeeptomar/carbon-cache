@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 /// Application service that orchestrates cache operations
 /// This is the main entry point for all cache operations in the application core
+#[derive(Clone)]
 pub struct CacheOperationsService<K, V>
 where
     K: Debug + Hash + Eq + Send + Sync + 'static,
@@ -34,7 +35,7 @@ where
     /// Helper method to look up a cache by name
     async fn get_cache_store(&self, cache_name: &str) -> Result<Arc<dyn CacheStore<K, V>>> {
         self.cache_manager
-            .get_cache(cache_name)
+            .get_cache_store(cache_name)
             .await
             .ok_or_else(|| Error::CacheNotFound(cache_name.to_string()))
     }

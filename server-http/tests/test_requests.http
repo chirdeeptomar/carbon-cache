@@ -1,0 +1,5 @@
+### GET request to carbon server
+
+GET http://localhost:8080/health
+
+###

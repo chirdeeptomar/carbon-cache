@@ -12,6 +12,16 @@ use std::hash::Hash;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+/// Entry containing both cache configuration and storage implementation
+pub struct CacheMetadata<K, V>
+where
+    K: Debug + Hash + Eq + Send + Sync + 'static,
+    V: Debug + Send + Sync + 'static,
+{
+    pub config: CacheConfig,
+    pub store: Arc<dyn CacheStore<K, V>>,
+}
+
 /// CacheManager orchestrates cache operations using injected storage implementations
 #[derive(Clone)]
 pub struct CacheManager<K, V>
@@ -19,8 +29,8 @@ where
     K: Debug + Hash + Eq + Send + Sync + 'static,
     V: Debug + Send + Sync + 'static,
 {
-    // Maps cache name -> storage implementation
-    cache_registry: Arc<RwLock<HashMap<String, Arc<dyn CacheStore<K, V>>>>>,
+    // Maps cache name -> cache metadata (config + storage implementation)
+    cache_registry: Arc<RwLock<HashMap<String, CacheMetadata<K, V>>>>,
 }
 
 impl<K, V> Debug for CacheManager<K, V>
@@ -46,22 +56,12 @@ where
         }
     }
 
-    /// Get a cache by name
-    pub async fn get_cache(&self, name: &str) -> Option<Arc<dyn CacheStore<K, V>>> {
+    /// Get a cache store by name
+    pub async fn get_cache_store(&self, name: &str) -> Option<Arc<dyn CacheStore<K, V>>> {
         let caches = self.cache_registry.read().await;
-        caches.get(name).cloned()
+        caches.get(name).map(|entry| entry.store.clone())
     }
 
-    /// Register a cache with a storage implementation
-    pub async fn register_cache(
-        &self,
-        name: String,
-        store: Arc<dyn CacheStore<K, V>>,
-    ) -> Result<()> {
-        let mut caches = self.cache_registry.write().await;
-        caches.insert(name, store);
-        Ok(())
-    }
 }
 
 impl<K, V> Default for CacheManager<K, V>
@@ -75,29 +75,38 @@ where
 }
 
 #[async_trait]
-impl<K, V> AdminOperations for CacheManager<K, V>
+impl<K, V> AdminOperations<K, V> for CacheManager<K, V>
 where
     K: Debug + Hash + Eq + Send + Sync + 'static,
     V: Debug + Send + Sync + Clone + 'static,
 {
-    async fn create_cache(&self, config: CacheConfig) -> Result<CreateCacheResponse> {
+
+    /// Create and register a cache with configuration and storage implementation (unified operation)
+    async fn create_cache(
+        &self,
+        config: CacheConfig,
+        store: Arc<dyn CacheStore<K, V>>,
+    ) -> Result<CreateCacheResponse> {
+        let mut caches = self.cache_registry.write().await;
+
         // Check if cache already exists
-        {
-            let caches = self.cache_registry.read().await;
-            if caches.contains_key(&config.name) {
-                return Ok(CreateCacheResponse::new(
-                    false,
-                    format!("Cache '{}' already exists", config.name),
-                ));
-            }
-        } // Read lock automatically released here
+        if caches.contains_key(&config.name) {
+            return Ok(CreateCacheResponse::new(
+                false,
+                format!("Cache '{}' already exists", config.name),
+            ));
+        }
+
+        let cache_name = config.name.clone();
+        let entry = CacheMetadata {
+            config,
+            store,
+        };
+        caches.insert(cache_name.clone(), entry);
 
         Ok(CreateCacheResponse::new(
             true,
-            format!(
-                "Cache '{}' configuration accepted. Use register_cache() to add the storage implementation.",
-                config.name
-            ),
+            format!("Cache '{}' created successfully", cache_name),
         ))
     }
 
@@ -110,35 +119,17 @@ where
     async fn list_caches(&self) -> Result<ListCachesResponse> {
         let caches = self.cache_registry.read().await;
         let cache_infos: Vec<CacheInfo> = caches
-            .keys()
-            .map(|name| {
-                CacheInfo::from_config(crate::domain::CacheConfig::new(
-                    name,
-                    0,
-                    None,
-                    0,
-                    crate::domain::EvictionPolicy::Unspecified,
-                    None,
-                    None,
-                ))
-            })
+            .values()
+            .map(|entry| CacheInfo::from_config(entry.config.clone()))
             .collect();
         Ok(ListCachesResponse::new(cache_infos))
     }
 
     async fn describe_cache(&self, name: &str) -> Result<DescribeCacheResponse> {
         let caches = self.cache_registry.read().await;
-        if caches.contains_key(name) {
+        if let Some(entry) = caches.get(name) {
             Ok(DescribeCacheResponse::new(CacheInfo::from_config(
-                crate::domain::CacheConfig::new(
-                    name,
-                    0,
-                    None,
-                    0,
-                    crate::domain::EvictionPolicy::Unspecified,
-                    None,
-                    None,
-                ),
+                entry.config.clone(),
             )))
         } else {
             Err(shared::Error::CacheNotFound(name.to_string()))

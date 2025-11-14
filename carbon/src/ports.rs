@@ -1,11 +1,12 @@
-use crate::domain::CacheConfig;
+use std::sync::Arc;
 use crate::domain::response::{
     DeleteResponse, GetResponse, PutResponse,
-    admin::{CreateCacheResponse, DescribeCacheResponse, DropCacheResponse, ListCachesResponse},
+    admin::{DescribeCacheResponse, DropCacheResponse, ListCachesResponse},
 };
 use async_trait::async_trait;
 use shared::{Result, TtlMs};
-
+use crate::domain::CacheConfig;
+use crate::domain::response::admin::CreateCacheResponse;
 // Ports are the pluggable extension points for underlying cache implementations
 
 /// Port for cache operations (e.g., Foyer)
@@ -18,8 +19,12 @@ pub trait CacheStore<K, V>: Send + Sync + 'static {
 
 /// Port for cache administration operations
 #[async_trait]
-pub trait AdminOperations: Send + Sync + 'static {
-    async fn create_cache(&self, config: CacheConfig) -> Result<CreateCacheResponse>;
+pub trait AdminOperations<K,V>: Send + Sync + 'static {
+    async fn create_cache(
+        &self,
+        config: CacheConfig,
+        store: Arc<dyn CacheStore<K, V>>,
+    ) -> Result<CreateCacheResponse>;
     async fn drop_cache(&self, name: &str) -> Result<DropCacheResponse>;
     async fn list_caches(&self) -> Result<ListCachesResponse>;
     async fn describe_cache(&self, name: &str) -> Result<DescribeCacheResponse>;
