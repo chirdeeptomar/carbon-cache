@@ -17,6 +17,13 @@ pub trait CacheStore<K, V>: Send + Sync + 'static {
     async fn delete(&self, key: &K) -> Result<DeleteResponse>;
 }
 
+/// Port for creating cache storage from configuration
+/// This allows different storage backends to be plugged in
+pub trait StorageFactory<K, V>: Send + Sync + 'static {
+    /// Create a new cache store from configuration
+    fn create_from_config(&self, config: &CacheConfig) -> Arc<dyn CacheStore<K, V>>;
+}
+
 /// Port for cache administration operations
 #[async_trait]
 pub trait AdminOperations<K,V>: Send + Sync + 'static {

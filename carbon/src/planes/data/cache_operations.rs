@@ -13,7 +13,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct CacheOperationsService<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
+    K: Debug + Hash + Eq + Send + Sync + Clone + 'static,
     V: Debug + Send + Sync + Clone + 'static,
 {
     cache_manager: CacheManager<K, V>,
@@ -22,7 +22,7 @@ where
 
 impl<K, V> CacheOperationsService<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
+    K: Debug + Hash + Eq + Send + Sync + Clone + 'static,
     V: Debug + Send + Sync + Clone + 'static,
 {
     pub fn new(cache_manager: CacheManager<K, V>) -> Self {
@@ -44,7 +44,7 @@ where
 #[async_trait]
 impl<K, V> CacheOperations<K, V> for CacheOperationsService<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
+    K: Debug + Hash + Eq + Send + Sync + Clone + 'static,
     V: Debug + Send + Sync + Clone + 'static,
 {
     /// Execute a PUT operation on a named cache
@@ -74,7 +74,7 @@ where
 
 impl<K, V> std::fmt::Debug for CacheOperationsService<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
+    K: Debug + Hash + Eq + Send + Sync + Clone + 'static,
     V: Debug + Send + Sync + Clone + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

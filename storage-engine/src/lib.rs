@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use carbon::domain::response::{DeleteResponse, GetResponse, PutResponse};
-use carbon::ports::CacheStore;
+use carbon::domain::CacheConfig;
+use carbon::ports::{CacheStore, StorageFactory};
 use foyer::{Cache, CacheBuilder};
 use shared::{Error, Result, TtlMs};
 use std::sync::Arc;
@@ -173,5 +174,21 @@ mod tests {
         // Should still be able to get it immediately
         let get_response = cache.get(&key).await.unwrap();
         assert_eq!(get_response.message, value);
+    }
+}
+
+/// Factory for creating Foyer cache instances from configuration
+pub struct FoyerStorageFactory;
+
+impl<K, V> StorageFactory<K, V> for FoyerStorageFactory
+where
+    K: Debug + Hash + Eq + Send + Sync + 'static,
+    V: Debug + Send + Sync + Clone + 'static,
+{
+    fn create_from_config(&self, config: &CacheConfig) -> Arc<dyn CacheStore<K, V>> {
+        Arc::new(FoyerCache::new(
+            config.name.clone(),
+            config.mem_bytes as usize,
+        ))
     }
 }

@@ -2,13 +2,14 @@ use crate::domain::response::admin::{
     CreateCacheResponse, DescribeCacheResponse, DropCacheResponse, ListCachesResponse,
 };
 use crate::domain::{CacheConfig, CacheInfo};
-
-use crate::ports::{AdminOperations, CacheStore};
+use crate::persistence::SledPersistence;
+use crate::ports::{AdminOperations, CacheStore, StorageFactory};
 use async_trait::async_trait;
 use shared::Result;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -31,6 +32,10 @@ where
 {
     // Maps cache name -> cache metadata (config + storage implementation)
     cache_registry: Arc<RwLock<HashMap<String, CacheMetadata<K, V>>>>,
+    // Optional persistence layer for cache configurations
+    persistence: Option<Arc<SledPersistence>>,
+    // Optional factory for creating storage from config
+    factory: Option<Arc<dyn StorageFactory<K, V>>>,
 }
 
 impl<K, V> Debug for CacheManager<K, V>
@@ -47,13 +52,49 @@ where
 
 impl<K, V> CacheManager<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + 'static,
+    K: Debug + Hash + Eq + Send + Sync + Clone + 'static,
+    V: Debug + Send + Sync + Clone + 'static,
 {
+    /// Create a new CacheManager without persistence (in-memory only)
     pub fn new() -> Self {
         Self {
             cache_registry: Arc::new(RwLock::new(HashMap::new())),
+            persistence: None,
+            factory: None,
         }
+    }
+
+    /// Create a new CacheManager with persistence enabled
+    /// This will eagerly load all cached configurations from Sled and recreate the caches
+    pub async fn new_with_persistence(
+        persistence_path: impl AsRef<Path>,
+        factory: Arc<dyn StorageFactory<K, V>>,
+    ) -> Result<Self> {
+        let persistence = SledPersistence::new(persistence_path)?;
+
+        // Load all configs from persistence
+        let configs = persistence.load_all()?;
+
+        // Create manager
+        let manager = Self {
+            cache_registry: Arc::new(RwLock::new(HashMap::new())),
+            persistence: Some(Arc::new(persistence)),
+            factory: Some(factory.clone()),
+        };
+
+        // Eagerly recreate all caches from configs (Option B)
+        let mut caches = manager.cache_registry.write().await;
+        for config in configs {
+            let store = factory.create_from_config(&config);
+            let entry = CacheMetadata {
+                config: config.clone(),
+                store,
+            };
+            caches.insert(config.name, entry);
+        }
+        drop(caches); // Release the lock
+
+        Ok(manager)
     }
 
     /// Get a cache store by name
@@ -66,7 +107,7 @@ where
 
 impl<K, V> Default for CacheManager<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
+    K: Debug + Hash + Eq + Send + Sync + Clone + 'static,
     V: Debug + Send + Sync + Clone + 'static,
 {
     fn default() -> Self {
@@ -98,6 +139,12 @@ where
         }
 
         let cache_name = config.name.clone();
+
+        // Persist to Sled if persistence is enabled
+        if let Some(ref persistence) = self.persistence {
+            persistence.save_config(&config)?;
+        }
+
         let entry = CacheMetadata {
             config,
             store,
@@ -113,6 +160,14 @@ where
     async fn drop_cache(&self, name: &str) -> Result<DropCacheResponse> {
         let mut caches = self.cache_registry.write().await;
         let dropped = caches.remove(name).is_some();
+
+        // Delete from Sled if persistence is enabled and cache was dropped
+        if dropped {
+            if let Some(ref persistence) = self.persistence {
+                persistence.delete_config(name)?;
+            }
+        }
+
         Ok(DropCacheResponse::new(dropped))
     }
 

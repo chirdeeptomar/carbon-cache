@@ -16,7 +16,7 @@ async fn main() {
     info!("Starting Carbon HTTP Server...");
 
     // Initialize state
-    let state = AppState::new();
+    let state = AppState::new().await;
 
     // Build router
     let router = routes::build_router(state);
