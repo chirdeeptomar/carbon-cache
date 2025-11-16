@@ -2,6 +2,7 @@ mod handlers;
 mod models;
 mod routes;
 mod state;
+mod validation;
 
 use state::AppState;
 use tracing::{info, Level};

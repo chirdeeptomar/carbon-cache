@@ -1,6 +1,6 @@
 use carbon::planes::control::CacheManager;
 use carbon::planes::data::CacheOperationsService;
-use storage_engine::FoyerStorageFactory;
+use storage_engine::UnifiedStorageFactory;
 use std::sync::Arc;
 
 /// Server state shared across handlers
@@ -42,8 +42,8 @@ impl AppState {
             .join(".carbon")
             .join("caches.sled");
 
-        // Create storage factory
-        let factory = Arc::new(FoyerStorageFactory);
+        // Create unified storage factory (supports Moka, Foyer Memory, and Foyer Hybrid)
+        let factory = Arc::new(UnifiedStorageFactory);
 
         // Initialize CacheManager with persistence
         CacheManager::new_with_persistence(persistence_path, factory).await

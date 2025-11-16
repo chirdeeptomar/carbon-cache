@@ -96,7 +96,7 @@ impl SledPersistence {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::EvictionPolicy;
+    use crate::domain::EvictionAlgorithm;
     use std::collections::HashMap;
 
     #[test]
@@ -108,10 +108,10 @@ mod tests {
 
         let config = CacheConfig::new(
             "test-cache",
-            1024 * 1024,
+            Some(1024 * 1024),
             None,
-            4,
-            EvictionPolicy::TinyLfu,
+            Some(4),
+            EvictionAlgorithm::TinyLfu,
             None,
             None,
             Some("Test cache".to_string()),

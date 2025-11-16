@@ -34,8 +34,6 @@ where
     cache_registry: Arc<RwLock<HashMap<String, CacheMetadata<K, V>>>>,
     // Optional persistence layer for cache configurations
     persistence: Option<Arc<SledPersistence>>,
-    // Optional factory for creating storage from config
-    factory: Option<Arc<dyn StorageFactory<K, V>>>,
 }
 
 impl<K, V> Debug for CacheManager<K, V>
@@ -60,7 +58,6 @@ where
         Self {
             cache_registry: Arc::new(RwLock::new(HashMap::new())),
             persistence: None,
-            factory: None,
         }
     }
 
@@ -79,18 +76,18 @@ where
         let manager = Self {
             cache_registry: Arc::new(RwLock::new(HashMap::new())),
             persistence: Some(Arc::new(persistence)),
-            factory: Some(factory.clone()),
         };
 
         // Eagerly recreate all caches from configs (Option B)
         let mut caches = manager.cache_registry.write().await;
         for config in configs {
             let store = factory.create_from_config(&config);
+            let cache_name = config.name.clone();
             let entry = CacheMetadata {
-                config: config.clone(),
+                config,
                 store,
             };
-            caches.insert(config.name, entry);
+            caches.insert(cache_name, entry);
         }
         drop(caches); // Release the lock
 
@@ -175,7 +172,7 @@ where
         let caches = self.cache_registry.read().await;
         let cache_infos: Vec<CacheInfo> = caches
             .values()
-            .map(|entry| CacheInfo::from_config(entry.config.clone()))
+            .map(|entry| CacheInfo::from_config(&entry.config))
             .collect();
         Ok(ListCachesResponse::new(cache_infos))
     }
@@ -184,7 +181,7 @@ where
         let caches = self.cache_registry.read().await;
         if let Some(entry) = caches.get(name) {
             Ok(DescribeCacheResponse::new(CacheInfo::from_config(
-                entry.config.clone(),
+                &entry.config,
             )))
         } else {
             Err(shared::Error::CacheNotFound(name.to_string()))

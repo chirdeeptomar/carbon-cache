@@ -104,9 +104,9 @@ pub struct CacheInfo {
 }
 
 impl CacheInfo {
-    pub fn from_config(config: CacheConfig) -> Self {
+    pub fn from_config(config: &CacheConfig) -> Self {
         Self {
-            config,
+            config: config.clone(),
             keys_estimate: 0,
             size_estimate: 0,
         }
@@ -115,29 +115,35 @@ impl CacheInfo {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CacheConfig {
-    pub name: String,                 // unique cache name
-    pub mem_bytes: u64,               // RAM budget
+    pub name: String, // unique cache name
+    #[serde(default = "default_backend")]
+    pub backend: CacheEvictionStrategy, // storage backend type
+    pub policy: EvictionAlgorithm, // default: TINYLFU
+    pub mem_bytes: Option<u64>, // RAM budget
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub disk_path: Option<String>,    // NVMe dir (optional -> memory-only)
-    pub shards: u32,                  // default: 2 * cores
-    pub policy: EvictionPolicy,       // default: TINYLFU
+    pub disk_path: Option<String>, // NVMe dir (optional -> memory-only)
+    pub shards: Option<u8>, // default: 2 * cores
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_ttl_ms: Option<u64>,  // 0 = no default TTL
+    pub default_ttl_ms: Option<u64>, // 0 = no default TTL
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_value_bytes: Option<u64>, // guardrails
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,  // human-readable description
+    pub description: Option<String>, // human-readable description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<HashMap<String, String>>, // metadata tags for categorization
+}
+
+fn default_backend() -> CacheEvictionStrategy {
+    CacheEvictionStrategy::SizeBounded
 }
 
 impl CacheConfig {
     pub fn new(
         name: impl Into<String>,
-        mem_bytes: u64,
+        mem_bytes: Option<u64>,
         disk_path: Option<String>,
-        shards: u32,
-        policy: EvictionPolicy,
+        shards: Option<u8>,
+        policy: EvictionAlgorithm,
         default_ttl_ms: Option<u64>,
         max_value_bytes: Option<u64>,
         description: Option<String>,
@@ -145,6 +151,34 @@ impl CacheConfig {
     ) -> Self {
         Self {
             name: name.into(),
+            backend: CacheEvictionStrategy::SizeBounded, // Default to bounded for backward compatibility
+            policy,
+            mem_bytes,
+            disk_path,
+            shards,
+            default_ttl_ms,
+            max_value_bytes,
+            description,
+            tags,
+        }
+    }
+
+    /// Create a new CacheConfig with explicit backend selection
+    pub fn with_backend(
+        name: impl Into<String>,
+        backend: CacheEvictionStrategy,
+        policy: EvictionAlgorithm,
+        mem_bytes: Option<u64>,
+        disk_path: Option<String>,
+        shards: Option<u8>,
+        default_ttl_ms: Option<u64>,
+        max_value_bytes: Option<u64>,
+        description: Option<String>,
+        tags: Option<HashMap<String, String>>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            backend,
             mem_bytes,
             disk_path,
             shards,
@@ -171,22 +205,33 @@ impl CacheConfig {
 
 #[repr(i8)]
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
-pub enum EvictionPolicy {
+pub enum EvictionAlgorithm {
     Unspecified,
     Lru,
     TinyLfu,
     Sieve,
 }
 
-impl TryFrom<i32> for EvictionPolicy {
+#[derive(PartialEq, Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CacheEvictionStrategy {
+    /// Moka cache - TTL-based, lock-free, optional size limits
+    TimeBound,
+    /// Foyer in-memory - Size-based eviction with LRU/TinyLFU/Sieve
+    SizeBounded,
+    /// Foyer hybrid - Memory + disk overflow (future)
+    OverflowToDisk,
+}
+
+impl TryFrom<i32> for EvictionAlgorithm {
     type Error = &'static str;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(EvictionPolicy::Unspecified),
-            1 => Ok(EvictionPolicy::Lru),
-            2 => Ok(EvictionPolicy::TinyLfu),
-            3 => Ok(EvictionPolicy::Sieve),
+            0 => Ok(EvictionAlgorithm::Unspecified),
+            1 => Ok(EvictionAlgorithm::Lru),
+            2 => Ok(EvictionAlgorithm::TinyLfu),
+            3 => Ok(EvictionAlgorithm::Sieve),
             _ => Err("Invalid eviction policy value"),
         }
     }

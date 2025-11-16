@@ -33,21 +33,28 @@ pub struct DeleteResponse {
 #[derive(Deserialize)]
 pub struct CreateCacheRequest {
     pub name: String,
-    pub mem_bytes: u64,
+    #[serde(default = "default_eviction")]
+    pub eviction: String,  // "moka", "bounded", or "hybrid"
+    #[serde(default)]
+    pub mem_bytes: Option<u64>,
     #[serde(default)]
     pub disk_path: Option<String>,
     #[serde(default)]
-    pub shards: u32,
+    pub shards: Option<u8>,
     #[serde(default)]
     pub policy: String,
     #[serde(default)]
-    pub default_ttl_ms: u64,
+    pub default_ttl_ms: Option<u64>,
     #[serde(default)]
-    pub max_value_bytes: u64,
+    pub max_value_bytes: Option<u64>,
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
     pub tags: Option<HashMap<String, String>>,
+}
+
+fn default_eviction() -> String {
+    "timebound".to_string()
 }
 
 #[derive(Serialize)]
@@ -59,4 +66,11 @@ pub struct CreateCacheResponse {
 #[derive(Serialize)]
 pub struct DropCacheResponse {
     pub dropped: bool,
+}
+
+#[derive(Serialize)]
+pub struct ValidationErrorResponse {
+    pub error: String,
+    pub field: Option<String>,
+    pub details: Option<String>,
 }

@@ -1,64 +1,55 @@
-use crate::models::{CreateCacheRequest, CreateCacheResponse, DropCacheResponse};
+use crate::models::{CreateCacheRequest, CreateCacheResponse, DropCacheResponse, ValidationErrorResponse};
 use crate::state::AppState;
+use crate::validation::CacheConfigFactory;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     Json,
 };
-use carbon::domain::{CacheConfig, EvictionPolicy};
-use carbon::ports::AdminOperations;
-use std::sync::Arc;
-use storage_engine::FoyerCache;
+use carbon::ports::{AdminOperations, StorageFactory};
+use storage_engine::UnifiedStorageFactory;
 use tracing::info;
 
 /// POST /admin/caches
 pub async fn create_cache(
     State(state): State<AppState>,
     Json(req): Json<CreateCacheRequest>,
-) -> Result<Json<CreateCacheResponse>, StatusCode> {
-    info!("CREATE_CACHE: name={}", req.name);
+) -> Result<Json<CreateCacheResponse>, (StatusCode, Json<ValidationErrorResponse>)> {
+    info!("CREATE_CACHE: name={}, backend={}", req.name, req.eviction);
 
-    let policy = match req.policy.to_lowercase().as_str() {
-        "lru" => EvictionPolicy::Lru,
-        "sieve" => EvictionPolicy::Sieve,
-        "tinylfu" | "" => EvictionPolicy::TinyLfu,
-        _ => EvictionPolicy::TinyLfu,
+    // Validate and build config using factory
+    let config = match CacheConfigFactory::from_request(req) {
+        Ok(config) => config,
+        Err(err) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ValidationErrorResponse {
+                    error: err.to_string(),
+                    field: None,
+                    details: Some(format!("{:?}", err)),
+                }),
+            ))
+        }
     };
 
-    let config = CacheConfig::new(
-        req.name.clone(),
-        req.mem_bytes,
-        req.disk_path.clone(),
-        req.shards,
-        policy,
-        if req.default_ttl_ms > 0 {
-            Some(req.default_ttl_ms)
-        } else {
-            None
-        },
-        if req.max_value_bytes > 0 {
-            Some(req.max_value_bytes)
-        } else {
-            None
-        },
-        req.description.clone(),
-        req.tags.clone(),
-    );
-
-    // Instantiate the storage layer
-    let foyer_cache = FoyerCache::new(req.name.clone(), req.mem_bytes as usize);
+    // Use factory to create appropriate storage backend
+    let factory = UnifiedStorageFactory;
+    let storage = factory.create_from_config(&config);
 
     // Create cache with storage (unified operation)
-    match state
-        .cache_manager
-        .create_cache(config, Arc::new(foyer_cache))
-        .await
-    {
+    match state.cache_manager.create_cache(config, storage).await {
         Ok(result) => Ok(Json(CreateCacheResponse {
             created: result.created,
             message: result.message,
         })),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ValidationErrorResponse {
+                error: "Failed to create cache".to_string(),
+                field: None,
+                details: Some("Internal server error".to_string()),
+            }),
+        )),
     }
 }
 
@@ -86,8 +77,8 @@ pub async fn list_caches(
     match state.cache_manager.list_caches().await {
         Ok(result) => {
             // Convert to JSON
-            let json = serde_json::to_value(result)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let json =
+                serde_json::to_value(result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(Json(json))
         }
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -103,8 +94,8 @@ pub async fn describe_cache(
 
     match state.cache_manager.describe_cache(&name).await {
         Ok(result) => {
-            let json = serde_json::to_value(result)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let json =
+                serde_json::to_value(result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(Json(json))
         }
         Err(shared::Error::CacheNotFound(_)) => Err(StatusCode::NOT_FOUND),

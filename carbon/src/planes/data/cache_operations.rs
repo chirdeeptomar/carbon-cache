@@ -17,7 +17,6 @@ where
     V: Debug + Send + Sync + Clone + 'static,
 {
     cache_manager: CacheManager<K, V>,
-    _phantom: std::marker::PhantomData<(K, V)>,
 }
 
 impl<K, V> CacheOperationsService<K, V>
@@ -28,7 +27,6 @@ where
     pub fn new(cache_manager: CacheManager<K, V>) -> Self {
         Self {
             cache_manager,
-            _phantom: std::marker::PhantomData,
         }
     }
 
