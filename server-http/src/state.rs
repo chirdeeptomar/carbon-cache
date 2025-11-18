@@ -1,13 +1,16 @@
+use carbon::events::CacheItemEvent;
 use carbon::planes::control::CacheManager;
 use carbon::planes::data::CacheOperationsService;
 use storage_engine::UnifiedStorageFactory;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 /// Server state shared across handlers
 #[derive(Clone)]
 pub struct AppState {
     pub cache_manager: CacheManager<Vec<u8>, Vec<u8>>,
-    pub cache_operations: CacheOperationsService<Vec<u8>, Vec<u8>>,
+    pub cache_operations: Arc<CacheOperationsService<Vec<u8>, Vec<u8>>>,
+    pub event_channel: broadcast::Sender<CacheItemEvent>,
 }
 
 impl AppState {
@@ -24,11 +27,19 @@ impl AppState {
             }
         };
 
-        let cache_operations = CacheOperationsService::new(cache_manager.clone());
+        // Create broadcast channel for SSE events (1000 event buffer capacity)
+        let (event_tx, _event_rx) = broadcast::channel(1000);
+
+        // Create cache operations service with event broadcaster
+        let cache_operations = Arc::new(CacheOperationsService::with_event_broadcaster(
+            cache_manager.clone(),
+            event_tx.clone(),
+        ));
 
         Self {
             cache_manager,
             cache_operations,
+            event_channel: event_tx,
         }
     }
 

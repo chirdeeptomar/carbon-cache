@@ -12,6 +12,8 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         // Health check
         .route("/health", get(handlers::health_check))
+        // SSE Events endpoint
+        .route("/events", get(handlers::stream_events))
         // Admin routes
         .route("/admin/caches", post(handlers::create_cache))
         .route("/admin/caches", get(handlers::list_caches))

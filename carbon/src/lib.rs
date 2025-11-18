@@ -2,3 +2,4 @@ pub mod domain;
 pub mod persistence;
 pub mod planes;
 pub mod ports;
+pub mod events;

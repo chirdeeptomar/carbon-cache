@@ -45,9 +45,11 @@ pub async fn get_value(
 ) -> Result<Json<GetResponse>, StatusCode> {
     info!("GET: cache={}, key={}", cache_name, key);
 
+    let key_bytes = key.into_bytes();
+
     match state
         .cache_operations
-        .get(&cache_name, &key.into_bytes())
+        .get(&cache_name, &key_bytes)
         .await
     {
         Ok(result) => {
@@ -77,9 +79,11 @@ pub async fn delete_value(
 ) -> Result<Json<DeleteResponse>, StatusCode> {
     info!("DELETE: cache={}, key={}", cache_name, key);
 
+    let key_bytes = key.into_bytes();
+
     match state
         .cache_operations
-        .delete(&cache_name, &key.into_bytes())
+        .delete(&cache_name, &key_bytes)
         .await
     {
         Ok(result) => Ok(Json(DeleteResponse {
