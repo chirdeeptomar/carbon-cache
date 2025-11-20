@@ -1,3 +1,4 @@
+use carbon::auth::{AuthService, RoleService, UserService};
 use carbon::events::CacheItemEvent;
 use carbon::planes::control::CacheManager;
 use carbon::planes::data::CacheOperationsService;
@@ -11,10 +12,17 @@ pub struct AppState {
     pub cache_manager: CacheManager<Vec<u8>, Vec<u8>>,
     pub cache_operations: Arc<CacheOperationsService<Vec<u8>, Vec<u8>>>,
     pub event_channel: broadcast::Sender<CacheItemEvent>,
+    pub auth_service: Arc<AuthService>,
+    pub user_service: Arc<UserService>,
+    pub role_service: Arc<RoleService>,
 }
 
 impl AppState {
-    pub async fn new() -> Self {
+    pub async fn new(
+        auth_service: Arc<AuthService>,
+        user_service: Arc<UserService>,
+        role_service: Arc<RoleService>,
+    ) -> Self {
         // Try to initialize with persistence, fall back to in-memory if it fails
         let cache_manager = match Self::init_with_persistence().await {
             Ok(manager) => {
@@ -40,6 +48,9 @@ impl AppState {
             cache_manager,
             cache_operations,
             event_channel: event_tx,
+            auth_service,
+            user_service,
+            role_service,
         }
     }
 
