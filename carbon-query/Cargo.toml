@@ -1,0 +1,17 @@
+[package]
+name = "carbon-query"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+carbon = { path = "../carbon" }
+shared = { path = "../shared" }
+ordered-float = { version =  "5.1.0", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"  # For JSON extractor
+async-trait = "0.1"
+tokio = { version = "1.0", features = ["sync"] }
+log = "0.4.28"
+
+# Optional: For advanced query parsing
+# nom = "7.1"  # Parser combinators

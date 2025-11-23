@@ -1,0 +1,1477 @@
+> Imagine the value stored in the cache is a json/bson/nested custom object and I want user to type
+a filter query with where clause like Postgres does with Json, how can I do that in carbon cache
+
+⏺ Great question! Let me explore the current cache implementation to understand how it stores and
+  retrieves data, then I'll design a JSON/BSON querying system for you.
+
+⏺ Plan(Explore cache storage implementation)
+  ⎿  Done (39 tool uses · 43.9k tokens · 2m 2s)
+
+⏺ Perfect! Now I understand the current architecture. Let me design a JSON querying system for
+  Carbon cache. First, let me clarify your requirements:
+
+⏺ User answered Claude's questions:
+  ⎿  · What type of query syntax would you prefer for filtering JSON values? → I dont want json,
+     that was just an example. I want u8 as its currently
+     · Should querying work with all existing storage backends or require a specific one? → All
+     backends (Moka, Foyer)
+     · What indexing strategy should be used? → Explicit index definitions
+
+⏺ Excellent! So you want a generic querying system that works with raw bytes (keeping the current
+  Vec<u8> storage), where users explicitly define how to extract and index fields from those bytes.
+  This is much more flexible - it can work with JSON, BSON, Protobuf, MessagePack, or any custom
+  format!
+
+  Let me design this system:
+
+  Carbon Cache Query System Design
+
+  Architecture Overview
+
+  ┌─────────────────────────────────────────────────────────┐
+  │                    HTTP API Layer                        │
+  │  POST /cache/{name}/query - Execute queries              │
+  │  POST /admin/caches/{name}/indexes - Create indexes      │
+  └─────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │                  Query Engine Layer                      │
+  │  - Parse query expressions                               │
+  │  - Choose index vs full scan                             │
+  │  - Execute filters                                       │
+  └─────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │               Secondary Index Layer                      │
+  │  - Index Manager per cache                               │
+  │  - Multiple indexes per cache                            │
+  │  - Index types: Equality, Range, Composite               │
+  └─────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │          Value Extractor System (Pluggable)              │
+  │  - User-defined extractors                               │
+  │  - Built-in: JSON, BSON, MessagePack                     │
+  │  - Custom: Protobuf, Avro, etc.                          │
+  └─────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │           Existing Storage Backends                      │
+  │         Moka Cache / Foyer Cache (Vec<u8>)              │
+  └─────────────────────────────────────────────────────────┘
+
+  Core Components
+
+  1. Value Extractor System
+
+  Users define extractors that know how to parse their byte format:
+
+  // Trait for extracting queryable fields from raw bytes
+  pub trait ValueExtractor: Send + Sync {
+      // Extract a field value from raw bytes
+      fn extract(&self, bytes: &[u8], path: &str) -> Result<FieldValue>;
+
+      // List all available paths (for introspection)
+      fn available_paths(&self, bytes: &[u8]) -> Vec<String>;
+  }
+
+  // Field values that can be indexed and queried
+  pub enum FieldValue {
+      String(String),
+      Number(f64),
+      Integer(i64),
+      Boolean(bool),
+      Bytes(Vec<u8>),
+      Null,
+  }
+
+  Built-in Extractors:
+  - JsonExtractor - parses JSON, extracts via JSON path syntax
+  - BsonExtractor - parses BSON documents
+  - MessagePackExtractor - parses MessagePack
+  - StringExtractor - treats bytes as UTF-8 string (for simple text values)
+
+  User API:
+  // When creating a cache, specify the extractor type
+  POST /admin/caches
+  {
+      "name": "users",
+      "eviction_strategy": "time_bound",
+      "extractor": {
+          "type": "json"  // or "bson", "msgpack", "custom"
+      }
+  }
+
+  2. Index Definition System
+
+  Users explicitly define which fields to index:
+
+  pub struct IndexDefinition {
+      pub name: String,
+      pub cache_name: String,
+      pub path: String,              // Field path to extract (e.g., "user.email")
+      pub index_type: IndexType,
+      pub unique: bool,
+  }
+
+  pub enum IndexType {
+      Hash,      // For equality queries (=, !=)
+      Range,     // For range queries (<, >, <=, >=)
+      FullText,  // For text search (LIKE, CONTAINS)
+  }
+
+  User API:
+  POST /admin/caches/users/indexes
+  {
+      "name": "email_idx",
+      "path": "email",
+      "type": "hash",
+      "unique": true
+  }
+
+  POST /admin/caches/users/indexes
+  {
+      "name": "age_idx",
+      "path": "age",
+      "type": "range",
+      "unique": false
+  }
+
+  3. Index Storage Structure
+
+  pub struct IndexManager {
+      // Map of index_name -> Index
+      indexes: HashMap<String, Box<dyn Index>>,
+
+      // Cache reference for scanning
+      cache_name: String,
+
+      // Extractor for this cache
+      extractor: Arc<dyn ValueExtractor>,
+  }
+
+  pub trait Index: Send + Sync {
+      // Add entry to index (called during PUT)
+      fn insert(&mut self, key: Vec<u8>, field_value: FieldValue);
+
+      // Remove entry from index (called during DELETE)
+      fn remove(&mut self, key: &[u8]);
+
+      // Query index
+      fn query(&self, predicate: &IndexPredicate) -> Vec<Vec<u8>>;
+  }
+
+  // Hash index: field_value -> set of keys
+  pub struct HashIndex {
+      index: HashMap<FieldValue, HashSet<Vec<u8>>>,
+  }
+
+  // Range index: ordered field values with keys
+  pub struct RangeIndex {
+      index: BTreeMap<FieldValue, HashSet<Vec<u8>>>,
+  }
+
+  4. Query Language
+
+  Simple expression-based query language:
+
+  Operators: =, !=, <, >, <=, >=, AND, OR, NOT
+  Syntax: field_path operator value [AND/OR field_path operator value]
+
+  Examples:
+  - email = "john@example.com"
+  - age > 25 AND age < 50
+  - status = "active" OR status = "pending"
+  - name != "admin" AND created_at > 1234567890
+
+  Query API:
+  POST /cache/users/query
+  {
+      "filter": "email = 'john@example.com'",
+      "limit": 100,
+      "offset": 0,
+      "return_keys_only": false
+  }
+
+  Response:
+  {
+      "matches": [
+          {
+              "key": "user:123",
+              "value": "{\"email\":\"john@example.com\",\"age\":30}"
+          }
+      ],
+      "count": 1,
+      "execution_plan": "Using index: email_idx"
+  }
+
+  5. Query Execution Flow
+
+  1. Parse query expression
+     ↓
+  2. Analyze query & choose execution plan:
+     - If indexed field with = operator → Use HashIndex
+     - If indexed field with range operator → Use RangeIndex
+     - If complex query with AND/OR → Use multiple indexes + merge
+     - If no suitable index → Full scan
+     ↓
+  3. Execute plan:
+     - Index lookup → Get candidate keys
+     - Fetch values from cache backend
+     - Apply remaining filters (if needed)
+     ↓
+  4. Return results
+
+  6. Integration with Existing Backends
+
+  Since Moka and Foyer don't expose iteration APIs, we need a parallel tracking structure:
+
+  pub struct QueryableCache<K, V> {
+      // Original cache backend
+      store: Arc<dyn CacheStore<K, V>>,
+
+      // Index manager for queries
+      index_manager: Arc<RwLock<IndexManager>>,
+
+      // Key tracker for full scans (when no index available)
+      key_tracker: Arc<RwLock<HashSet<K>>>,
+  }
+
+  impl<K, V> QueryableCache<K, V> {
+      async fn put(&self, key: K, val: V, ttl: Option<TtlMs>) -> Result<PutResponse> {
+          // 1. Store in backend
+          let result = self.store.put(key.clone(), val.clone(), ttl).await?;
+
+          // 2. Extract fields and update indexes
+          for (index_name, index) in self.index_manager.write().await.indexes.iter_mut() {
+              let field_value = self.index_manager.extractor.extract(&val, &index.path)?;
+              index.insert(key.clone(), field_value);
+          }
+
+          // 3. Track key for scanning
+          self.key_tracker.write().await.insert(key.clone());
+
+          Ok(result)
+      }
+
+      async fn query(&self, filter: &str) -> Result<Vec<(K, V)>> {
+          // Parse query and execute
+          // ...
+      }
+  }
+
+  Implementation Strategy
+
+  Phase 1: Foundation
+
+  1. Define core traits: ValueExtractor, Index, IndexDefinition
+  2. Implement FieldValue enum and comparison operators
+  3. Create IndexManager structure
+  4. Build JsonExtractor as first extractor
+
+  Phase 2: Basic Indexing
+
+  1. Implement HashIndex for equality queries
+  2. Add key tracking to existing put/delete operations
+  3. Create index maintenance logic (insert/remove)
+  4. Build simple query parser (single field, single operator)
+
+  Phase 3: Query Engine
+
+  1. Implement query parser for complex expressions
+  2. Build query planner (choose index vs scan)
+  3. Add query execution engine
+  4. Implement result pagination
+
+  Phase 4: Advanced Features
+
+  1. Implement RangeIndex for range queries
+  2. Add BsonExtractor and MessagePackExtractor
+  3. Support composite indexes (multiple fields)
+  4. Add query statistics and EXPLAIN plans
+
+  Phase 5: HTTP API
+
+  1. Add POST /cache/{name}/query endpoint
+  2. Add POST /admin/caches/{name}/indexes endpoint
+  3. Add GET /admin/caches/{name}/indexes endpoint
+  4. Add DELETE /admin/caches/{name}/indexes/{index_name} endpoint
+
+  Storage Considerations
+
+  Index Persistence:
+  - Indexes stored in-memory by default (rebuilt on restart)
+  - Optional: Use Sled to persist indexes to disk
+  - Index metadata stored alongside cache configs in ~/.carbon/caches.sled
+
+  Memory Overhead:
+  - Each index maintains: field_value -> set(keys) mapping
+  - With 1M entries, indexed field, ~16 bytes per key = ~16MB per index
+  - Users control which fields to index to manage overhead
+
+  Example Usage
+
+  1. Create queryable cache:
+  curl -u admin:admin123 -X POST http://localhost:8080/admin/caches \
+    -H "Content-Type: application/json" \
+    -d '{
+      "name": "users",
+      "eviction_strategy": "time_bound",
+      "ttl_ms": 3600000,
+      "extractor": {"type": "json"}
+    }'
+
+  2. Create indexes:
+  # Email index for fast lookups
+  curl -u admin:admin123 -X POST http://localhost:8080/admin/caches/users/indexes \
+    -d '{"name": "email_idx", "path": "email", "type": "hash", "unique": true}'
+
+  # Age index for range queries
+  curl -u admin:admin123 -X POST http://localhost:8080/admin/caches/users/indexes \
+    -d '{"name": "age_idx", "path": "age", "type": "range", "unique": false}'
+
+  3. Store values (as before):
+  curl -u admin:admin123 -X PUT http://localhost:8080/cache/users/user:123 \
+    -d '{"value": "{\"email\":\"john@example.com\",\"age\":30,\"status\":\"active\"}"}'
+
+  4. Query:
+  # Find by email
+  curl -u admin:admin123 -X POST http://localhost:8080/cache/users/query \
+    -d '{"filter": "email = \"john@example.com\""}'
+
+  # Range query on age
+  curl -u admin:admin123 -X POST http://localhost:8080/cache/users/query \
+    -d '{"filter": "age > 25 AND age < 50"}'
+
+  # Complex query
+  curl -u admin:admin123 -X POST http://localhost:8080/cache/users/query \
+    -d '{"filter": "status = \"active\" AND age > 18"}'
+
+  Key Benefits
+
+  ✅ Format Agnostic - Works with JSON, BSON, Protobuf, custom formats
+  ✅ Zero Backend Changes - Works with existing Moka/Foyer backends
+  ✅ User-Controlled - Explicit index definitions, no automatic overhead
+  ✅ Extensible - Users can implement custom extractors
+  ✅ Performance - Index-based queries for fast lookups
+  ✅ Flexible - Falls back to full scan when no index available
+
+  Would you like me to proceed with implementing this design?
+
+> Show me how the query with where will work
+
+⏺ Let me show you how queries with WHERE clauses will work in Carbon Cache with concrete examples:
+
+  Query Execution Flow - Detailed Walkthrough
+
+  Example Scenario Setup
+
+  Cache: users (using JSON extractor)
+
+  Indexes defined:
+  - email_idx: Hash index on email field
+  - age_idx: Range index on age field
+  - country_idx: Hash index on country field
+
+  Sample data in cache:
+  Key: "user:1" → Value: {"email":"alice@example.com","age":28,"country":"US","status":"active"}
+  Key: "user:2" → Value: {"email":"bob@example.com","age":35,"country":"UK","status":"active"}
+  Key: "user:3" → Value: {"email":"charlie@example.com","age":42,"country":"US","status":"inactive"}
+  Key: "user:4" → Value: {"email":"diana@example.com","age":23,"country":"CA","status":"active"}
+  Key: "user:5" → Value: {"email":"eve@example.com","age":31,"country":"US","status":"active"}
+
+  Internal Index State:
+
+  email_idx (HashIndex):
+  {
+    "alice@example.com" → ["user:1"],
+    "bob@example.com" → ["user:2"],
+    "charlie@example.com" → ["user:3"],
+    "diana@example.com" → ["user:4"],
+    "eve@example.com" → ["user:5"]
+  }
+
+  age_idx (RangeIndex - BTreeMap):
+  {
+    23 → ["user:4"],
+    28 → ["user:1"],
+    31 → ["user:5"],
+    35 → ["user:2"],
+    42 → ["user:3"]
+  }
+
+  country_idx (HashIndex):
+  {
+    "US" → ["user:1", "user:3", "user:5"],
+    "UK" → ["user:2"],
+    "CA" → ["user:4"]
+  }
+
+  ---
+  Query Example 1: Simple Equality (Using Hash Index)
+
+  Query:
+
+  POST /cache/users/query
+  {
+    "filter": "email = 'bob@example.com'"
+  }
+
+  Execution Steps:
+
+  Step 1: Parse Query
+  AST:
+    Comparison {
+      field: "email",
+      operator: Equals,
+      value: String("bob@example.com")
+    }
+
+  Step 2: Query Planning
+  Available indexes: email_idx (Hash), age_idx (Range), country_idx (Hash)
+  Query uses: email with = operator
+  Decision: USE INDEX email_idx (Hash) ✓
+  Reason: Exact match on indexed field
+
+  Step 3: Index Lookup
+  email_idx.query("bob@example.com")
+    → Returns: ["user:2"]
+
+  Step 4: Fetch Values
+  For each key in ["user:2"]:
+    cache.get("user:2") → {"email":"bob@example.com","age":35,"country":"UK","status":"active"}
+
+  Step 5: Apply Filter (already satisfied by index)
+  No additional filtering needed
+
+  Response:
+  {
+    "matches": [
+      {
+        "key": "user:2",
+        "value":
+  "{\"email\":\"bob@example.com\",\"age\":35,\"country\":\"UK\",\"status\":\"active\"}"
+      }
+    ],
+    "count": 1,
+    "execution_plan": "Index scan on email_idx",
+    "index_used": true,
+    "scanned_entries": 1
+  }
+
+  ---
+  Query Example 2: Range Query (Using Range Index)
+
+  Query:
+
+  POST /cache/users/query
+  {
+    "filter": "age > 30"
+  }
+
+  Execution Steps:
+
+  Step 1: Parse Query
+  AST:
+    Comparison {
+      field: "age",
+      operator: GreaterThan,
+      value: Number(30)
+    }
+
+  Step 2: Query Planning
+  Query uses: age with > operator
+  Available index: age_idx (Range) ✓
+  Decision: USE INDEX age_idx (Range)
+  Reason: Range query on indexed field
+
+  Step 3: Index Range Scan
+  age_idx.range_query(30 < x):
+    BTreeMap.range((Excluded(30), Unbounded))
+
+    31 → ["user:5"]
+    35 → ["user:2"]
+    42 → ["user:3"]
+
+    → Returns: ["user:5", "user:2", "user:3"]
+
+  Step 4: Fetch Values
+  cache.get("user:5") → {"email":"eve@example.com","age":31,...}
+  cache.get("user:2") → {"email":"bob@example.com","age":35,...}
+  cache.get("user:3") → {"email":"charlie@example.com","age":42,...}
+
+  Step 5: Apply Filter (already satisfied)
+  All entries match: age > 30
+
+  Response:
+  {
+    "matches": [
+      {"key": "user:5", "value":
+  "{\"email\":\"eve@example.com\",\"age\":31,\"country\":\"US\",\"status\":\"active\"}"},
+      {"key": "user:2", "value":
+  "{\"email\":\"bob@example.com\",\"age\":35,\"country\":\"UK\",\"status\":\"active\"}"},
+      {"key": "user:3", "value":
+  "{\"email\":\"charlie@example.com\",\"age\":42,\"country\":\"US\",\"status\":\"inactive\"}"}
+    ],
+    "count": 3,
+    "execution_plan": "Range scan on age_idx (30 < age)",
+    "index_used": true,
+    "scanned_entries": 3
+  }
+
+  ---
+  Query Example 3: AND with Multiple Indexes (Index Intersection)
+
+  Query:
+
+  POST /cache/users/query
+  {
+    "filter": "country = 'US' AND age > 30"
+  }
+
+  Execution Steps:
+
+  Step 1: Parse Query
+  AST:
+    And {
+      left: Comparison { field: "country", operator: Equals, value: "US" },
+      right: Comparison { field: "age", operator: GreaterThan, value: 30 }
+    }
+
+  Step 2: Query Planning
+  Clause 1: country = 'US' → Has index: country_idx (Hash)
+  Clause 2: age > 30 → Has index: age_idx (Range)
+
+  Strategy: INDEX INTERSECTION
+  1. Use country_idx to get candidate keys
+  2. Use age_idx to get candidate keys
+  3. Intersect the two sets
+
+  Step 3: Execute Sub-queries
+
+  Sub-query 1: country_idx.query("US")
+    → Returns: ["user:1", "user:3", "user:5"]
+
+  Sub-query 2: age_idx.range_query(30 < x)
+    → Returns: ["user:5", "user:2", "user:3"]
+
+  Intersection: ["user:1", "user:3", "user:5"] ∩ ["user:5", "user:2", "user:3"]
+    → Result: ["user:3", "user:5"]
+
+  Step 4: Fetch Values
+  cache.get("user:3") → {"email":"charlie@example.com","age":42,"country":"US","status":"inactive"}
+  cache.get("user:5") → {"email":"eve@example.com","age":31,"country":"US","status":"active"}
+
+  Step 5: Verify Filter (double-check)
+  user:3: country="US" ✓, age=42 > 30 ✓
+  user:5: country="US" ✓, age=31 > 30 ✓
+
+  Response:
+  {
+    "matches": [
+      {"key": "user:3", "value":
+  "{\"email\":\"charlie@example.com\",\"age\":42,\"country\":\"US\",\"status\":\"inactive\"}"},
+      {"key": "user:5", "value":
+  "{\"email\":\"eve@example.com\",\"age\":31,\"country\":\"US\",\"status\":\"active\"}"}
+    ],
+    "count": 2,
+    "execution_plan": "Index intersection: country_idx AND age_idx",
+    "index_used": true,
+    "scanned_entries": 2
+  }
+
+  ---
+  Query Example 4: AND with Indexed + Non-Indexed Field
+
+  Query:
+
+  POST /cache/users/query
+  {
+    "filter": "country = 'US' AND status = 'active'"
+  }
+
+  Execution Steps:
+
+  Step 1: Parse Query
+  AST:
+    And {
+      left: Comparison { field: "country", operator: Equals, value: "US" },
+      right: Comparison { field: "status", operator: Equals, value: "active" }
+    }
+
+  Step 2: Query Planning
+  Clause 1: country = 'US' → Has index: country_idx (Hash) ✓
+  Clause 2: status = 'active' → NO INDEX ✗
+
+  Strategy: INDEX SCAN + POST-FILTER
+  1. Use country_idx to narrow down candidates
+  2. Fetch values and apply status filter in-memory
+
+  Step 3: Index Lookup
+  country_idx.query("US")
+    → Returns: ["user:1", "user:3", "user:5"]
+
+  Step 4: Fetch & Filter
+  For each key in ["user:1", "user:3", "user:5"]:
+
+    user:1 → {"email":"alice@example.com","age":28,"country":"US","status":"active"}
+      country="US" ✓, status="active" ✓ → INCLUDE
+
+    user:3 → {"email":"charlie@example.com","age":42,"country":"US","status":"inactive"}
+      country="US" ✓, status="inactive" ✗ → EXCLUDE
+
+    user:5 → {"email":"eve@example.com","age":31,"country":"US","status":"active"}
+      country="US" ✓, status="active" ✓ → INCLUDE
+
+  Response:
+  {
+    "matches": [
+      {"key": "user:1", "value":
+  "{\"email\":\"alice@example.com\",\"age\":28,\"country\":\"US\",\"status\":\"active\"}"},
+      {"key": "user:5", "value":
+  "{\"email\":\"eve@example.com\",\"age\":31,\"country\":\"US\",\"status\":\"active\"}"}
+    ],
+    "count": 2,
+    "execution_plan": "Index scan on country_idx, post-filter on status",
+    "index_used": true,
+    "scanned_entries": 3,
+    "filtered_entries": 2
+  }
+
+  ---
+  Query Example 5: OR Query (Index Union)
+
+  Query:
+
+  POST /cache/users/query
+  {
+    "filter": "country = 'UK' OR country = 'CA'"
+  }
+
+  Execution Steps:
+
+  Step 1: Parse Query
+  AST:
+    Or {
+      left: Comparison { field: "country", operator: Equals, value: "UK" },
+      right: Comparison { field: "country", operator: Equals, value: "CA" }
+    }
+
+  Step 2: Query Planning
+  Both clauses use country_idx
+
+  Strategy: INDEX UNION
+  1. Query country_idx for "UK"
+  2. Query country_idx for "CA"
+  3. Union the results (deduplicate)
+
+  Step 3: Execute Sub-queries
+  Sub-query 1: country_idx.query("UK")
+    → Returns: ["user:2"]
+
+  Sub-query 2: country_idx.query("CA")
+    → Returns: ["user:4"]
+
+  Union: ["user:2"] ∪ ["user:4"]
+    → Result: ["user:2", "user:4"]
+
+  Step 4: Fetch Values
+  cache.get("user:2") → {"email":"bob@example.com","age":35,"country":"UK","status":"active"}
+  cache.get("user:4") → {"email":"diana@example.com","age":23,"country":"CA","status":"active"}
+
+  Response:
+  {
+    "matches": [
+      {"key": "user:2", "value":
+  "{\"email\":\"bob@example.com\",\"age\":35,\"country\":\"UK\",\"status\":\"active\"}"},
+      {"key": "user:4", "value":
+  "{\"email\":\"diana@example.com\",\"age\":23,\"country\":\"CA\",\"status\":\"active\"}"}
+    ],
+    "count": 2,
+    "execution_plan": "Index union: country_idx(UK) OR country_idx(CA)",
+    "index_used": true,
+    "scanned_entries": 2
+  }
+
+  ---
+  Query Example 6: No Suitable Index (Full Scan)
+
+  Query:
+
+  POST /cache/users/query
+  {
+    "filter": "status = 'active'"
+  }
+
+  Execution Steps:
+
+  Step 1: Parse Query
+  AST:
+    Comparison {
+      field: "status",
+      operator: Equals,
+      value: String("active")
+    }
+
+  Step 2: Query Planning
+  Query uses: status with = operator
+  Available indexes: email_idx, age_idx, country_idx
+  No index on 'status' field
+
+  Decision: FULL SCAN ⚠️
+  Reason: No suitable index available
+
+  Step 3: Full Scan
+  Iterate through key_tracker (all cache keys):
+    ["user:1", "user:2", "user:3", "user:4", "user:5"]
+
+  For each key:
+    1. Fetch value from cache
+    2. Extract 'status' field using JsonExtractor
+    3. Compare status == "active"
+    4. If match, add to results
+
+  Step 4: Execute Scan
+  user:1 → status="active" ✓ → INCLUDE
+  user:2 → status="active" ✓ → INCLUDE
+  user:3 → status="inactive" ✗ → EXCLUDE
+  user:4 → status="active" ✓ → INCLUDE
+  user:5 → status="active" ✓ → INCLUDE
+
+  Response:
+  {
+    "matches": [
+      {"key": "user:1", "value":
+  "{\"email\":\"alice@example.com\",\"age\":28,\"country\":\"US\",\"status\":\"active\"}"},
+      {"key": "user:2", "value":
+  "{\"email\":\"bob@example.com\",\"age\":35,\"country\":\"UK\",\"status\":\"active\"}"},
+      {"key": "user:4", "value":
+  "{\"email\":\"diana@example.com\",\"age\":23,\"country\":\"CA\",\"status\":\"active\"}"},
+      {"key": "user:5", "value":
+  "{\"email\":\"eve@example.com\",\"age\":31,\"country\":\"US\",\"status\":\"active\"}"}
+    ],
+    "count": 4,
+    "execution_plan": "Full scan (no suitable index)",
+    "index_used": false,
+    "scanned_entries": 5,
+    "warning": "Consider creating an index on 'status' field for better performance"
+  }
+
+  ---
+  Query Example 7: Complex Query with Range
+
+  Query:
+
+  POST /cache/users/query
+  {
+    "filter": "age >= 25 AND age <= 35 AND country = 'US'",
+    "limit": 10
+  }
+
+  Execution Steps:
+
+  Step 1: Parse Query
+  AST:
+    And {
+      left: And {
+        left: Comparison { field: "age", operator: GreaterThanEquals, value: 25 },
+        right: Comparison { field: "age", operator: LessThanEquals, value: 35 }
+      },
+      right: Comparison { field: "country", operator: Equals, value: "US" }
+    }
+
+  Step 2: Query Planning & Cost Analysis
+  Option 1: age_idx.range(25..=35) → ~3 entries, then filter country
+  Option 2: country_idx("US") → 3 entries, then filter age
+
+  Both similar, choose Range index first (more selective)
+
+  Strategy: RANGE SCAN + POST-FILTER
+
+  Step 3: Range Scan
+  age_idx.range_query(25 <= x <= 35):
+    BTreeMap.range((Included(25), Included(35)))
+
+    28 → ["user:1"]
+    31 → ["user:5"]
+    35 → ["user:2"]
+
+    → Returns: ["user:1", "user:5", "user:2"]
+
+  Step 4: Fetch & Filter
+  user:1 → age=28 ✓, country="US" ✓ → INCLUDE
+  user:5 → age=31 ✓, country="US" ✓ → INCLUDE
+  user:2 → age=35 ✓, country="UK" ✗ → EXCLUDE
+
+  Response:
+  {
+    "matches": [
+      {"key": "user:1", "value":
+  "{\"email\":\"alice@example.com\",\"age\":28,\"country\":\"US\",\"status\":\"active\"}"},
+      {"key": "user:5", "value":
+  "{\"email\":\"eve@example.com\",\"age\":31,\"country\":\"US\",\"status\":\"active\"}"}
+    ],
+    "count": 2,
+    "execution_plan": "Range scan on age_idx (25 <= age <= 35), post-filter on country",
+    "index_used": true,
+    "scanned_entries": 3,
+    "filtered_entries": 2
+  }
+
+  ---
+  Query Optimizer Decision Tree
+
+  ┌─────────────────────────────────┐
+  │   Parse WHERE clause to AST     │
+  └────────────┬────────────────────┘
+               │
+               ▼
+  ┌─────────────────────────────────┐
+  │   Identify fields & operators   │
+  └────────────┬────────────────────┘
+               │
+               ▼
+          ┌────┴─────┐
+          │  Single  │
+          │ Clause?  │
+          └────┬─────┘
+           Yes │     No
+               │      └───────────┐
+               ▼                  ▼
+      ┌────────────────┐   ┌─────────────┐
+      │ Has index on   │   │  AND/OR     │
+      │ this field?    │   │  Operator?  │
+      └────┬───────────┘   └──────┬──────┘
+       Yes │   No              AND │ OR
+           │    │                  │  │
+           ▼    ▼                  ▼  ▼
+      ┌────┐ ┌────┐         ┌─────┐ ┌─────┐
+      │USE │ │FULL│         │INDEX│ │INDEX│
+      │IDX │ │SCAN│         │INTER│ │UNION│
+      └────┘ └────┘         │SECT │ └─────┘
+                            └─────┘
+
+  ---
+  This is how the WHERE clause querying would work! The system intelligently chooses the best
+  execution plan based on available indexes, falling back to full scans when needed.
+
+> On another note, currently I am using key: Vec<u8>,  value: Vec<u8>. Does this prevent me to have
+negative numbers and large string like paratagraphs in values?
+
+⏺ Great question! The answer is no, Vec<u8> does NOT prevent you from storing negative numbers or
+  large strings. Let me clarify:
+
+  What Vec<u8> Actually Means
+
+  Vec<u8> is a vector of bytes - essentially a byte array of any length. Each individual byte is u8
+  (0-255), but the vector itself can contain any binary data of any size.
+
+  Think of it like:
+  - u8 = a single byte (0-255)
+  - Vec<u8> = a sequence of bytes = raw binary data = can represent ANYTHING
+
+  Current Code Already Handles This
+
+  Looking at your HTTP handlers (server-http/src/handlers/cache_ops.rs), you're already storing
+  strings by converting them to bytes:
+
+  // PUT operation
+  let value = req.value.into_bytes();  // String → Vec<u8>
+
+  // GET operation
+  let value = String::from_utf8(result.message)?;  // Vec<u8> → String
+
+  This means you can already store:
+  - ✅ Large paragraphs
+  - ✅ Multi-line text
+  - ✅ Unicode characters (emojis, Chinese, Arabic, etc.)
+  - ✅ Any string of any length (limited only by memory)
+
+  Examples of What Can Be Stored
+
+  1. Large Strings/Paragraphs ✅
+
+  curl -u admin:admin123 -X PUT http://localhost:8080/cache/docs/doc1 \
+    -H "Content-Type: application/json" \
+    -d '{
+      "value": "This is a very long paragraph with multiple sentences. It can contain thousands of
+  words, spanning many lines. There is no practical limit to the size of strings you can store,
+  other than available memory. You could store entire books, articles, or documents as cache
+  values."
+    }'
+
+  What happens internally:
+  String (UTF-8): "This is a very long..."
+       ↓
+  Vec<u8>: [84, 104, 105, 115, 32, 105, 115, 32, 97, ...]
+       ↓
+  Stored in Moka/Foyer cache
+
+  2. Negative Numbers ✅
+
+  You just need to serialize them properly. Here are different ways:
+
+  Option A: Store as string (current approach)
+  curl -u admin:admin123 -X PUT http://localhost:8080/cache/metrics/temperature \
+    -d '{"value": "-42"}'
+
+  Option B: Store as JSON
+  curl -u admin:admin123 -X PUT http://localhost:8080/cache/data/sensor \
+    -d '{"value": "{\"temperature\": -42, \"humidity\": 65}"}'
+
+  What happens internally:
+  String: "-42"
+       ↓
+  Vec<u8>: [45, 52, 50]  // ASCII bytes for '-', '4', '2'
+       ↓
+  Stored in cache
+
+  When you retrieve it:
+  Vec<u8>: [45, 52, 50]
+       ↓
+  String: "-42"
+       ↓
+  Parse: i32::parse("-42") = -42
+
+  Option C: Store binary-encoded integers (more efficient)
+
+  If you wanted to store raw binary integers instead of strings:
+
+  // Encoding negative number to bytes
+  let num: i32 = -42;
+  let bytes: Vec<u8> = num.to_le_bytes().to_vec();  // [214, 255, 255, 255]
+
+  // Decoding bytes back to negative number
+  let num: i32 = i32::from_le_bytes([214, 255, 255, 255]);  // -42
+
+  3. JSON Objects ✅
+
+  curl -u admin:admin123 -X PUT http://localhost:8080/cache/users/user123 \
+    -d '{
+      "value": "{\"name\":\"John Doe\",\"age\":-5,\"balance\":-1000.50,\"bio\":\"This is a very long
+   biography that spans multiple lines and contains lots of text...\"}"
+    }'
+
+  4. Binary Data (BSON, Protobuf, MessagePack) ✅
+
+  You could even store non-text binary formats:
+
+  // BSON example (if you added support)
+  let doc = bson::doc! {
+      "temperature": -42,
+      "pressure": 1013.25,
+      "description": "Very long text..."
+  };
+  let bytes: Vec<u8> = bson::to_vec(&doc)?;  // Binary BSON encoding
+
+  // Store bytes directly in cache
+  cache.put("sensor:1", bytes, None).await?;
+
+  Size Limits
+
+  The only limits are:
+
+  1. Memory:
+    - In-memory caches (Moka, Foyer) are limited by RAM
+    - Each value takes up memory proportional to its size
+  2. Configuration:
+    - Moka: Can set max_capacity (number of entries)
+    - Foyer: Can set memory_size (total bytes)
+  3. No inherent Vec limit:
+    - A Vec<u8> can theoretically hold up to isize::MAX bytes (~9 exabytes on 64-bit systems)
+    - Practically limited by available RAM
+
+  Verification in Current Code
+
+  Let me show you the actual code handling this:
+
+  PUT handler (server-http/src/handlers/cache_ops.rs:12-39):
+  pub async fn put_value(
+      Path((cache_name, key)): Path<(String, String)>,
+      Json(req): Json<PutRequest>,  // req.value is a String
+  ) -> Result<Json<PutResponse>, StatusCode> {
+      state.cache_operations.put(
+          &cache_name,
+          key.into_bytes(),      // String → Vec<u8>
+          req.value.into_bytes(), // String → Vec<u8> (ANY string, any size)
+          ttl,
+      ).await
+  }
+
+  GET handler (server-http/src/handlers/cache_ops.rs:42-73):
+  pub async fn get_value(...) -> Result<Json<GetResponse>, StatusCode> {
+      match state.cache_operations.get(&cache_name, &key_bytes).await {
+          Ok(result) => {
+              let value = String::from_utf8(result.message)?;  // Vec<u8> → String
+              Ok(Json(GetResponse { value, ... }))
+          }
+      }
+  }
+
+  The into_bytes() and from_utf8() conversions handle strings of any size and any content,
+  including:
+  - Multi-line text
+  - Unicode characters
+  - Numbers (as strings like "-42")
+  - JSON (as a string like "{\"temp\":-42}")
+
+  Summary
+
+  ✅ Negative numbers: Store as string ("-42") or JSON ({"temp": -42}) - works fine
+  ✅ Large paragraphs: No limit except memory - store multi-page documents if needed
+  ✅ Binary data: Vec can store raw binary (BSON, Protobuf, etc.) not just text
+  ✅ Unicode: Full UTF-8 support - emojis, international characters, etc.
+
+  Your current Vec<u8> design is actually very flexible - it's the universal format that can
+  represent any data type!
+
+> So going back to the previous question of filtering, how do I do sorting?
+
+⏺ Great question! Let me show you how sorting would work with the query system. Sorting adds another
+   dimension to the filtering we discussed.
+
+  Sorting Design for Carbon Cache Queries
+
+  Query API with Sorting
+
+  POST /cache/users/query
+  {
+    "filter": "age > 25 AND country = 'US'",
+    "order_by": [
+      {"field": "age", "direction": "desc"},
+      {"field": "name", "direction": "asc"}
+    ],
+    "limit": 10,
+    "offset": 0
+  }
+
+  Core Sorting Structures
+
+  pub struct OrderBy {
+      pub field: String,           // Field path (e.g., "age", "user.email")
+      pub direction: SortDirection,
+  }
+
+  pub enum SortDirection {
+      Asc,   // Ascending: 1, 2, 3... or A, B, C...
+      Desc,  // Descending: 3, 2, 1... or C, B, A...
+  }
+
+  pub struct QueryRequest {
+      pub filter: Option<String>,      // WHERE clause
+      pub order_by: Vec<OrderBy>,      // ORDER BY clause
+      pub limit: Option<usize>,        // LIMIT
+      pub offset: Option<usize>,       // OFFSET
+  }
+
+  Sorting Strategies
+
+  Strategy 1: Index-Based Sorting (Fast) ⚡
+
+  When to use: Sorting by a field with a Range index
+
+  How it works: Range indexes use BTreeMap which stores entries in sorted order!
+
+  Example:
+
+  POST /cache/users/query
+  {
+    "filter": "country = 'US'",
+    "order_by": [{"field": "age", "direction": "asc"}]
+  }
+
+  Execution:
+
+  Step 1: Apply filter using country_idx
+    country_idx.query("US") → ["user:1", "user:3", "user:5"]
+
+  Step 2: Check if ORDER BY field has Range index
+    age_idx exists and is a Range index ✓
+
+  Step 3: Fetch values and extract sort keys
+    user:1 → age: 28
+    user:3 → age: 42
+    user:5 → age: 31
+
+  Step 4: Use Range index to determine sort order
+    Since age_idx is a BTreeMap:
+      28 → user:1
+      31 → user:5
+      42 → user:3
+
+    Sorted result: [user:1, user:5, user:3]
+
+  Step 5: Fetch final values in sorted order
+    [
+      {"key": "user:1", "value": {..., "age": 28}},
+      {"key": "user:5", "value": {..., "age": 31}},
+      {"key": "user:3", "value": {..., "age": 42}}
+    ]
+
+  Performance: O(n log n) where n = filtered results (using index for ordering)
+
+  ---
+  Strategy 2: In-Memory Sorting (Fallback)
+
+  When to use: No Range index on ORDER BY field, or complex multi-field sorting
+
+  How it works: Fetch all filtered results, extract sort keys, sort in memory
+
+  Example:
+
+  POST /cache/users/query
+  {
+    "filter": "country = 'US'",
+    "order_by": [{"field": "name", "direction": "asc"}]
+  }
+
+  Execution:
+
+  Step 1: Apply filter
+    country_idx.query("US") → ["user:1", "user:3", "user:5"]
+
+  Step 2: Check for Range index on 'name'
+    No index on 'name' field ✗
+
+  Step 3: Fetch all values and extract sort keys
+    user:1 → name: "Alice"
+    user:3 → name: "Charlie"
+    user:5 → name: "Eve"
+
+  Step 4: Sort in-memory
+    Sort by FieldValue comparison:
+      [
+        (user:1, "Alice"),
+        (user:3, "Charlie"),
+        (user:5, "Eve")
+      ]
+
+  Step 5: Return sorted results
+    [
+      {"key": "user:1", "value": {..., "name": "Alice"}},
+      {"key": "user:3", "value": {..., "name": "Charlie"}},
+      {"key": "user:5", "value": {..., "name": "Eve"}}
+    ]
+
+  Performance: O(n log n) where n = filtered results (standard sorting algorithm)
+
+  ---
+  Strategy 3: Multi-Field Sorting
+
+  Example:
+
+  POST /cache/users/query
+  {
+    "filter": "status = 'active'",
+    "order_by": [
+      {"field": "country", "direction": "asc"},
+      {"field": "age", "direction": "desc"}
+    ]
+  }
+
+  Execution:
+
+  Step 1: Apply filter
+    Full scan for status='active' → [user:1, user:2, user:4, user:5]
+
+  Step 2: Fetch values and extract ALL sort keys
+    user:1 → (country: "US", age: 28)
+    user:2 → (country: "UK", age: 35)
+    user:4 → (country: "CA", age: 23)
+    user:5 → (country: "US", age: 31)
+
+  Step 3: Multi-level sort
+    First by country (asc):
+      CA → [user:4]
+      UK → [user:2]
+      US → [user:1, user:5]
+
+    Then by age (desc) within each country group:
+      CA → [user:4 (age: 23)]
+      UK → [user:2 (age: 35)]
+      US → [user:5 (age: 31), user:1 (age: 28)]  // 31 > 28
+
+  Step 4: Final sorted order
+    [user:4, user:2, user:5, user:1]
+
+  Rust Implementation:
+
+  results.sort_by(|a, b| {
+      for order in &order_by {
+          let a_value = extract_field(&a.value, &order.field);
+          let b_value = extract_field(&b.value, &order.field);
+
+          let cmp = match order.direction {
+              Asc => a_value.cmp(&b_value),
+              Desc => b_value.cmp(&a_value),
+          };
+
+          if cmp != Ordering::Equal {
+              return cmp;  // First difference determines order
+          }
+      }
+      Ordering::Equal
+  });
+
+  ---
+  Optimized Sorting: Using Index Directly
+
+  Scenario: ORDER BY indexed field with no filter (or simple filter)
+
+  Query:
+  POST /cache/users/query
+  {
+    "order_by": [{"field": "age", "direction": "asc"}],
+    "limit": 10
+  }
+
+  Optimization: Walk the Range index directly!
+
+  // age_idx is BTreeMap<FieldValue, HashSet<Vec<u8>>>
+  // It's already sorted by age!
+
+  Step 1: Check - ORDER BY uses Range index ✓
+
+  Step 2: Iterate index in order
+    For direction = Asc:
+      age_idx.iter()  // Walks BTreeMap in ascending order
+
+    For direction = Desc:
+      age_idx.iter().rev()  // Walks in descending order
+
+  Step 3: Yield results in index order
+    23 → ["user:4"] → fetch → yield
+    28 → ["user:1"] → fetch → yield
+    31 → ["user:5"] → fetch → yield
+    35 → ["user:2"] → fetch → yield
+    42 → ["user:3"] → fetch → yield
+
+  Step 4: Apply LIMIT early
+    Stop after 10 entries (don't scan entire index)
+
+  Performance: O(k) where k = limit (optimal!)
+
+  This is much faster than fetching all entries and sorting!
+
+  ---
+  Sorting with Pagination
+
+  Query:
+  POST /cache/users/query
+  {
+    "filter": "country = 'US'",
+    "order_by": [{"field": "age", "direction": "asc"}],
+    "limit": 2,
+    "offset": 1
+  }
+
+  Execution:
+
+  Step 1: Apply filter
+    country = 'US' → [user:1, user:3, user:5]
+
+  Step 2: Sort results
+    By age: [user:1 (28), user:5 (31), user:3 (42)]
+
+  Step 3: Apply OFFSET
+    Skip first 1 entry: [user:5 (31), user:3 (42)]
+
+  Step 4: Apply LIMIT
+    Take first 2 entries: [user:5 (31), user:3 (42)]
+
+  Response:
+  {
+    "matches": [
+      {"key": "user:5", "value": {..., "age": 31}},
+      {"key": "user:3", "value": {..., "age": 42}}
+    ],
+    "count": 2,
+    "total": 3,  // Total before pagination
+    "has_more": false
+  }
+
+  ---
+  FieldValue Comparison Rules
+
+  impl PartialOrd for FieldValue {
+      fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+          match (self, other) {
+              // Same types - natural ordering
+              (String(a), String(b)) => a.partial_cmp(b),
+              (Number(a), Number(b)) => a.partial_cmp(b),
+              (Integer(a), Integer(b)) => a.partial_cmp(b),
+              (Boolean(a), Boolean(b)) => a.partial_cmp(b),
+              (Bytes(a), Bytes(b)) => a.partial_cmp(b),
+
+              // Null always sorts last (or first, depending on preference)
+              (Null, Null) => Some(Ordering::Equal),
+              (Null, _) => Some(Ordering::Greater),
+              (_, Null) => Some(Ordering::Less),
+
+              // Cross-type comparison: define type hierarchy
+              // Number < Integer < String < Boolean < Bytes
+              // (or return None to prevent cross-type sorting)
+              _ => None,
+          }
+      }
+  }
+
+  Sorting behavior:
+  - Numbers: -42 < -10 < 0 < 10 < 100
+  - Strings: "Alice" < "Bob" < "Charlie" (lexicographic)
+  - Booleans: false < true
+  - Null: Always sorts to end (or beginning, configurable)
+  - Mixed types: Error or defined hierarchy
+
+  ---
+  Complete Query Examples
+
+  Example 1: Filter + Sort + Paginate
+
+  Query:
+  POST /cache/products/query
+  {
+    "filter": "category = 'electronics' AND price > 100",
+    "order_by": [
+      {"field": "price", "direction": "desc"},
+      {"field": "name", "direction": "asc"}
+    ],
+    "limit": 20,
+    "offset": 0
+  }
+
+  Response:
+  {
+    "matches": [
+      {"key": "prod:101", "value":
+  "{\"name\":\"Laptop\",\"category\":\"electronics\",\"price\":1200}"},
+      {"key": "prod:205", "value":
+  "{\"name\":\"Monitor\",\"category\":\"electronics\",\"price\":800}"},
+      {"key": "prod:312", "value":
+  "{\"name\":\"Keyboard\",\"category\":\"electronics\",\"price\":150}"}
+    ],
+    "count": 3,
+    "total": 15,
+    "has_more": true,
+    "execution_plan": "Index scan on category_idx, post-filter on price, sort by price_idx (desc)
+  then name (in-memory)",
+    "execution_time_ms": 2.5
+  }
+
+  Example 2: Sort-Only Query (Top-K)
+
+  Query:
+  POST /cache/analytics/query
+  {
+    "order_by": [{"field": "views", "direction": "desc"}],
+    "limit": 10
+  }
+
+  Optimization: If views has a Range index, walk it in reverse!
+
+  Response:
+  {
+    "matches": [
+      {"key": "page:home", "value": "{\"views\":15000,...}"},
+      {"key": "page:about", "value": "{\"views\":8500,...}"},
+      {"key": "page:contact", "value": "{\"views\":3200,...}"}
+    ],
+    "count": 10,
+    "execution_plan": "Direct index walk on views_idx (descending)",
+    "index_used": true
+  }
+
+  Example 3: Reverse Sorting
+
+  Query:
+  POST /cache/users/query
+  {
+    "filter": "status = 'active'",
+    "order_by": [{"field": "created_at", "direction": "desc"}]
+  }
+
+  Use case: Get newest users first
+
+  ---
+  Implementation Details
+
+  Sorting Algorithm Choice
+
+  match results.len() {
+      0..=100 => results.sort_by(...),           // Standard sort (TimSort)
+      101..=10000 => results.par_sort_by(...),   // Parallel sort (rayon)
+      _ => {
+          // For very large results, consider streaming sort
+          // or force pagination
+          if limit.is_none() {
+              return Err("Query too large, use LIMIT");
+          }
+          results.sort_by(...);
+      }
+  }
+
+  When to Build a Range Index
+
+  Recommendation: Create Range indexes for fields commonly used in ORDER BY
+
+  # Good candidates for Range indexes:
+  POST /admin/caches/users/indexes
+  {
+    "name": "age_idx",
+    "path": "age",
+    "type": "range"  # Enables sorted retrieval
+  }
+
+  POST /admin/caches/products/indexes
+  {
+    "name": "price_idx",
+    "path": "price",
+    "type": "range"  # Enables price-based sorting
+  }
+
+  POST /admin/caches/posts/indexes
+  {
+    "name": "created_idx",
+    "path": "created_at",
+    "type": "range"  # Enables time-based sorting
+  }
+
+  Hash indexes cannot be used for sorting (unordered)
+
+  ---
+  Performance Comparison
+
+  | Scenario                        | Strategy                    | Performance             |
+  |---------------------------------|-----------------------------|-------------------------|
+  | ORDER BY indexed field only     | Direct index walk           | O(k) - optimal          |
+  | ORDER BY indexed field + filter | Index lookup + sorted merge | O(n log n) - good       |
+  | ORDER BY non-indexed field      | Fetch all + in-memory sort  | O(n log n) - acceptable |
+  | Multi-field ORDER BY            | In-memory sort              | O(n log n) - acceptable |
+  | No ORDER BY                     | Return in any order         | O(n) - fastest          |
+
+  Where:
+  - k = limit (number of results to return)
+  - n = number of filtered results
+
+  ---
+  Summary
+
+  Sorting Strategies:
+  1. ✅ Index-based - Use Range index for fast sorted retrieval
+  2. ✅ In-memory - Standard sorting when no index available
+  3. ✅ Multi-field - Hierarchical sorting with multiple ORDER BY clauses
+  4. ✅ Optimized - Early termination with LIMIT on indexed sorts
+
+  Key Points:
+  - Range indexes enable O(k) sorted retrieval
+  - Multi-field sorting always uses in-memory sort
+  - Pagination (LIMIT/OFFSET) works naturally with sorting
+  - Descending order = reverse iteration of Range index
+
+  This gives you PostgreSQL-like ORDER BY functionality on your cache queries!
+
+
