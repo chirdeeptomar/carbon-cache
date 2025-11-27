@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use bytes::Bytes;
 use carbon::planes::data::operation::CacheOperations;
 use tracing::info;
 
@@ -27,7 +28,7 @@ pub async fn put_value(
         .put(
             &cache_name,
             key.into_bytes(),
-            req.value.into_bytes(),
+            Bytes::from(req.value),
             ttl,
         )
         .await
@@ -47,13 +48,9 @@ pub async fn get_value(
 
     let key_bytes = key.into_bytes();
 
-    match state
-        .cache_operations
-        .get(&cache_name, &key_bytes)
-        .await
-    {
+    match state.cache_operations.get(&cache_name, &key_bytes).await {
         Ok(result) => {
-            let value = String::from_utf8(result.message)
+            let value = String::from_utf8(result.message.to_vec())
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
             Ok(Json(GetResponse {
@@ -81,11 +78,7 @@ pub async fn delete_value(
 
     let key_bytes = key.into_bytes();
 
-    match state
-        .cache_operations
-        .delete(&cache_name, &key_bytes)
-        .await
-    {
+    match state.cache_operations.delete(&cache_name, &key_bytes).await {
         Ok(result) => Ok(Json(DeleteResponse {
             deleted: result.deleted,
         })),

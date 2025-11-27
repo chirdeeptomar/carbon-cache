@@ -8,6 +8,7 @@ use shared::{Error, Result, TtlMs};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
+use bytes::Bytes;
 use tokio::sync::broadcast;
 
 /// Application service that orchestrates cache operations
@@ -68,13 +69,13 @@ where
 
 // Specialized implementation for Vec<u8>/Vec<u8> with event broadcasting
 #[async_trait]
-impl CacheOperations<Vec<u8>, Vec<u8>> for CacheOperationsService<Vec<u8>, Vec<u8>> {
+impl CacheOperations<Vec<u8>, Bytes> for CacheOperationsService<Vec<u8>, Bytes> {
     /// Execute a PUT operation on a named cache with event broadcasting
     async fn put(
         &self,
         cache_name: &str,
         key: Vec<u8>,
-        value: Vec<u8>,
+        value: Bytes,
         ttl: Option<TtlMs>,
     ) -> Result<PutResponse> {
         let cache_store = self.get_cache_store(cache_name).await?;
@@ -131,7 +132,7 @@ impl CacheOperations<Vec<u8>, Vec<u8>> for CacheOperationsService<Vec<u8>, Vec<u
     }
 
     /// Execute a GET operation on a named cache (no event broadcasting)
-    async fn get(&self, cache_name: &str, key: &Vec<u8>) -> Result<GetResponse<Vec<u8>>> {
+    async fn get(&self, cache_name: &str, key: &Vec<u8>) -> Result<GetResponse<Bytes>> {
         let cache_store = self.get_cache_store(cache_name).await?;
         cache_store.get(key).await
     }

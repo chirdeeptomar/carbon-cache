@@ -23,3 +23,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 carbon = { path = "../carbon" }
 shared = { path = "../shared" }
 storage-engine = { path = "../storage-engine" }
+dhat = "0.3.3"
+bytes = "1.11.0"
+
+[profile.release]
+debug = true  # Keep debug symbols for profiling

@@ -14,8 +14,13 @@ use state::AppState;
 use std::sync::Arc;
 use tracing::{info, warn, Level};
 
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[tokio::main]
 async fn main() {
+    let _profiler = dhat::Profiler::new_heap();
+
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_max_level(Level::INFO)
@@ -47,7 +52,47 @@ async fn main() {
     info!("HTTP Server listening on http://0.0.0.0:8080");
     info!("Try: curl -u admin:admin123 http://localhost:8080/health");
 
-    axum::serve(listener, router).await.unwrap();
+    // Graceful shutdown handler
+    axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+
+    info!("Server shutdown complete. Writing dhat profiling data...");
+    drop(_profiler);  // Explicitly drop profiler to write output
+    info!("Profiling data written to dhat-heap.json");
+}
+
+async fn shutdown_signal() {
+    use tokio::signal;
+
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            info!("Received Ctrl+C signal");
+        },
+        _ = terminate => {
+            info!("Received terminate signal");
+        },
+    }
+
+    info!("Shutting down gracefully...");
 }
 
 async fn init_auth_system() -> (Arc<AuthService>, Arc<UserService>, Arc<RoleService>) {

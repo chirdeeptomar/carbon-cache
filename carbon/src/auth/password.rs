@@ -2,7 +2,7 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use rand::rngs::OsRng;
+use argon2::password_hash::rand_core::OsRng;
 
 use super::error::AuthError;
 

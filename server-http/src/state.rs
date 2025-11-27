@@ -4,13 +4,14 @@ use carbon::planes::control::CacheManager;
 use carbon::planes::data::CacheOperationsService;
 use storage_engine::UnifiedStorageFactory;
 use std::sync::Arc;
+use bytes::Bytes;
 use tokio::sync::broadcast;
 
 /// Server state shared across handlers
 #[derive(Clone)]
 pub struct AppState {
-    pub cache_manager: CacheManager<Vec<u8>, Vec<u8>>,
-    pub cache_operations: Arc<CacheOperationsService<Vec<u8>, Vec<u8>>>,
+    pub cache_manager: CacheManager<Vec<u8>, Bytes>,
+    pub cache_operations: Arc<CacheOperationsService<Vec<u8>, Bytes>>,
     pub event_channel: broadcast::Sender<CacheItemEvent>,
     pub auth_service: Arc<AuthService>,
     pub user_service: Arc<UserService>,
@@ -54,7 +55,7 @@ impl AppState {
         }
     }
 
-    async fn init_with_persistence() -> shared::Result<CacheManager<Vec<u8>, Vec<u8>>> {
+    async fn init_with_persistence() -> shared::Result<CacheManager<Vec<u8>, Bytes>> {
         // Get home directory for persistence path
         let home_dir = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
