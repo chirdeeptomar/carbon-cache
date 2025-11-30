@@ -10,10 +10,7 @@ pub struct AuthService {
 }
 
 impl AuthService {
-    pub fn new(
-        user_repo: Arc<dyn UserRepository>,
-        role_repo: Arc<dyn RoleRepository>,
-    ) -> Self {
+    pub fn new(user_repo: Arc<dyn UserRepository>, role_repo: Arc<dyn RoleRepository>) -> Self {
         Self {
             user_repo,
             role_repo,
@@ -111,12 +108,12 @@ mod tests {
     #[tokio::test]
     async fn test_authenticate_success() {
         let temp_dir = TempDir::new().unwrap();
-        let user_repo = Arc::new(
-            SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap(),
-        ) as Arc<dyn UserRepository>;
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let user_repo =
+            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+                as Arc<dyn UserRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let auth_service = AuthService::new(user_repo.clone(), role_repo);
 
@@ -138,12 +135,12 @@ mod tests {
     #[tokio::test]
     async fn test_authenticate_invalid_password() {
         let temp_dir = TempDir::new().unwrap();
-        let user_repo = Arc::new(
-            SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap(),
-        ) as Arc<dyn UserRepository>;
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let user_repo =
+            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+                as Arc<dyn UserRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let auth_service = AuthService::new(user_repo.clone(), role_repo);
 
@@ -164,12 +161,12 @@ mod tests {
     #[tokio::test]
     async fn test_authorize_with_permission() {
         let temp_dir = TempDir::new().unwrap();
-        let user_repo = Arc::new(
-            SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap(),
-        ) as Arc<dyn UserRepository>;
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let user_repo =
+            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+                as Arc<dyn UserRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let auth_service = AuthService::new(user_repo, role_repo.clone());
 

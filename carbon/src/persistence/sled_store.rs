@@ -83,9 +83,8 @@ impl SledPersistence {
 
         match value {
             Some(bytes) => {
-                let config: CacheConfig = serde_json::from_slice(&bytes).map_err(|e| {
-                    Error::Internal(format!("Failed to deserialize config: {}", e))
-                })?;
+                let config: CacheConfig = serde_json::from_slice(&bytes)
+                    .map_err(|e| Error::Internal(format!("Failed to deserialize config: {}", e)))?;
                 Ok(Some(config))
             }
             None => Ok(None),

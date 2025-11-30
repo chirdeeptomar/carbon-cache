@@ -18,8 +18,8 @@ pub async fn create_role(
     Json(req): Json<CreateRoleRequest>,
 ) -> Result<(StatusCode, Json<RoleResponse>), (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has ManageRoles permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::ManageRoles)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::ManageRoles).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -29,7 +29,11 @@ pub async fn create_role(
         req.name, current_user.username
     );
 
-    match state.role_service.create_role(req.name, req.permissions).await {
+    match state
+        .role_service
+        .create_role(req.name, req.permissions)
+        .await
+    {
         Ok(role) => Ok((StatusCode::CREATED, Json(role.into()))),
         Err(e) => {
             error!("Failed to create role: {}", e);
@@ -47,8 +51,8 @@ pub async fn list_roles(
     Extension(current_user): Extension<User>,
 ) -> Result<Json<ListRolesResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has AdminRead permission (any user/admin can list roles)
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::AdminRead)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::AdminRead).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -77,8 +81,8 @@ pub async fn get_role(
     Path(name): Path<String>,
 ) -> Result<Json<RoleResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has AdminRead permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::AdminRead)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::AdminRead).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -87,7 +91,10 @@ pub async fn get_role(
         Ok(role) => Ok(Json(role.into())),
         Err(e) => {
             error!("Failed to get role {}: {}", name, e);
-            Err((StatusCode::NOT_FOUND, Json(ErrorResponse::new(e.to_string()))))
+            Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(e.to_string())),
+            ))
         }
     }
 }
@@ -100,8 +107,8 @@ pub async fn update_role(
     Json(req): Json<UpdateRoleRequest>,
 ) -> Result<Json<RoleResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has ManageRoles permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::ManageRoles)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::ManageRoles).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -115,7 +122,10 @@ pub async fn update_role(
     let role = match state.role_service.get_role(&name).await {
         Ok(role) => role,
         Err(e) => {
-            return Err((StatusCode::NOT_FOUND, Json(ErrorResponse::new(e.to_string()))))
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(e.to_string())),
+            ))
         }
     };
 
@@ -142,8 +152,8 @@ pub async fn delete_role(
     Path(name): Path<String>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has ManageRoles permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::ManageRoles)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::ManageRoles).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -157,7 +167,10 @@ pub async fn delete_role(
     let role = match state.role_service.get_role(&name).await {
         Ok(role) => role,
         Err(e) => {
-            return Err((StatusCode::NOT_FOUND, Json(ErrorResponse::new(e.to_string()))))
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(e.to_string())),
+            ))
         }
     };
 

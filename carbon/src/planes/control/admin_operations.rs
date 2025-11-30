@@ -83,10 +83,7 @@ where
         for config in configs {
             let store = factory.create_from_config(&config);
             let cache_name = config.name.clone();
-            let entry = CacheMetadata {
-                config,
-                store,
-            };
+            let entry = CacheMetadata { config, store };
             caches.insert(cache_name, entry);
         }
         drop(caches); // Release the lock
@@ -99,7 +96,6 @@ where
         let caches = self.cache_registry.read().await;
         caches.get(name).map(|entry| entry.store.clone())
     }
-
 }
 
 impl<K, V> Default for CacheManager<K, V>
@@ -118,7 +114,6 @@ where
     K: Debug + Hash + Eq + Send + Sync + 'static,
     V: Debug + Send + Sync + Clone + 'static,
 {
-
     /// Create and register a cache with configuration and storage implementation (unified operation)
     async fn create_cache(
         &self,
@@ -142,10 +137,7 @@ where
             persistence.save_config(&config)?;
         }
 
-        let entry = CacheMetadata {
-            config,
-            store,
-        };
+        let entry = CacheMetadata { config, store };
         caches.insert(cache_name.clone(), entry);
 
         Ok(CreateCacheResponse::new(
@@ -159,10 +151,8 @@ where
         let dropped = caches.remove(name).is_some();
 
         // Delete from Sled if persistence is enabled and cache was dropped
-        if dropped {
-            if let Some(ref persistence) = self.persistence {
-                persistence.delete_config(name)?;
-            }
+        if dropped && let Some(ref persistence) = self.persistence {
+            persistence.delete_config(name)?;
         }
 
         Ok(DropCacheResponse::new(dropped))

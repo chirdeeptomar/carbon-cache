@@ -5,7 +5,11 @@ use std::collections::HashSet;
 
 /// Create the default system roles
 pub fn create_default_roles() -> Vec<Role> {
-    vec![create_admin_role(), create_user_role(), create_readonly_role()]
+    vec![
+        create_admin_role(),
+        create_user_role(),
+        create_readonly_role(),
+    ]
 }
 
 /// Create the admin role with all permissions

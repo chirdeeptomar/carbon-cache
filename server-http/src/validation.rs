@@ -198,7 +198,8 @@ impl CacheConfigFactory {
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
             return Err(ValidationError::InvalidCacheName {
-                reason: "cache name must contain only alphanumeric characters, hyphens, or underscores",
+                reason:
+                    "cache name must contain only alphanumeric characters, hyphens, or underscores",
             });
         }
 

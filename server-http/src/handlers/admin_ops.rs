@@ -1,4 +1,6 @@
-use crate::models::{CreateCacheRequest, CreateCacheResponse, DropCacheResponse, ValidationErrorResponse};
+use crate::models::{
+    CreateCacheRequest, CreateCacheResponse, DropCacheResponse, ValidationErrorResponse,
+};
 use crate::state::AppState;
 use crate::validation::CacheConfigFactory;
 use axum::{

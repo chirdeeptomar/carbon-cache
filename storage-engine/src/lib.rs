@@ -25,14 +25,12 @@ where
         match config.backend {
             CacheEvictionStrategy::TimeBound => {
                 // Create Moka cache with optional TTL
-                let default_ttl = config
-                    .default_ttl_ms
-                    .map(|ms| Duration::from_millis(ms));
+                let default_ttl = config.default_ttl_ms.map(Duration::from_millis);
 
                 // For Moka, mem_bytes could be interpreted as max entries
                 // For simplicity, if mem_bytes > 0, treat as bounded with that many entries
                 // Otherwise, unbounded
-                let max_entries = if config.mem_bytes.is_some(){
+                let max_entries = if config.mem_bytes.is_some() {
                     config.mem_bytes
                 } else {
                     None
@@ -44,21 +42,27 @@ where
                     default_ttl,
                 ))
             }
+
             CacheEvictionStrategy::SizeBounded => {
                 // Create Foyer in-memory cache
                 // Safety: mem_bytes is validated as required for SizeBounded caches
                 Arc::new(FoyerMemoryCache::new(
                     config.name.clone(),
-                    config.mem_bytes.expect("mem_bytes is required for SizeBounded cache and should be validated") as usize,
+                    config.mem_bytes.expect(
+                        "mem_bytes is required for SizeBounded cache and should be validated",
+                    ) as usize,
                 ))
             }
+
             CacheEvictionStrategy::OverflowToDisk => {
                 // TODO: Implement Foyer hybrid (memory + disk)
                 // For now, fallback to memory-only
                 // Safety: mem_bytes is validated as required for OverflowToDisk caches
                 Arc::new(FoyerMemoryCache::new(
                     config.name.clone(),
-                    config.mem_bytes.expect("mem_bytes is required for OverflowToDisk cache and should be validated") as usize,
+                    config.mem_bytes.expect(
+                        "mem_bytes is required for OverflowToDisk cache and should be validated",
+                    ) as usize,
                 ))
             }
         }

@@ -123,17 +123,8 @@ fn should_send(event: &CacheItemEvent, filter: &EventFilter) -> bool {
 /// Convert a CacheItemEvent to an SSE Event
 fn to_sse_event(event: CacheItemEvent) -> Event {
     match event {
-        CacheItemEvent::Added(e) => Event::default()
-            .event("item.added")
-            .json_data(e)
-            .unwrap(),
-        CacheItemEvent::Updated(e) => Event::default()
-            .event("item.updated")
-            .json_data(e)
-            .unwrap(),
-        CacheItemEvent::Deleted(e) => Event::default()
-            .event("item.deleted")
-            .json_data(e)
-            .unwrap(),
+        CacheItemEvent::Added(e) => Event::default().event("item.added").json_data(e).unwrap(),
+        CacheItemEvent::Updated(e) => Event::default().event("item.updated").json_data(e).unwrap(),
+        CacheItemEvent::Deleted(e) => Event::default().event("item.deleted").json_data(e).unwrap(),
     }
 }

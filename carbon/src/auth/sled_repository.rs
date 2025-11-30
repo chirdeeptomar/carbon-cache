@@ -346,7 +346,10 @@ mod tests {
         let created_system = repo.create(system_role).await.unwrap();
 
         let delete_result = repo.delete(&created_system.id).await;
-        assert!(matches!(delete_result, Err(AuthError::CannotDeleteSystemRole)));
+        assert!(matches!(
+            delete_result,
+            Err(AuthError::CannotDeleteSystemRole)
+        ));
 
         // Can delete non-system role
         repo.delete(&created.id).await.unwrap();

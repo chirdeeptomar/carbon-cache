@@ -11,10 +11,7 @@ pub struct UserService {
 }
 
 impl UserService {
-    pub fn new(
-        user_repo: Arc<dyn UserRepository>,
-        role_repo: Arc<dyn RoleRepository>,
-    ) -> Self {
+    pub fn new(user_repo: Arc<dyn UserRepository>, role_repo: Arc<dyn RoleRepository>) -> Self {
         Self {
             user_repo,
             role_repo,
@@ -131,7 +128,11 @@ impl UserService {
     }
 
     /// Delete a user
-    pub async fn delete_user(&self, user_id: &str, requesting_user_id: &str) -> Result<(), AuthError> {
+    pub async fn delete_user(
+        &self,
+        user_id: &str,
+        requesting_user_id: &str,
+    ) -> Result<(), AuthError> {
         // Prevent users from deleting themselves
         if user_id == requesting_user_id {
             return Err(AuthError::CannotDeleteSelf);
@@ -166,12 +167,12 @@ mod tests {
     #[tokio::test]
     async fn test_create_user() {
         let temp_dir = TempDir::new().unwrap();
-        let user_repo = Arc::new(
-            SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap(),
-        ) as Arc<dyn UserRepository>;
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let user_repo =
+            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+                as Arc<dyn UserRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         // Create a role first
         let role = create_user_role();
@@ -197,12 +198,12 @@ mod tests {
     #[tokio::test]
     async fn test_change_password() {
         let temp_dir = TempDir::new().unwrap();
-        let user_repo = Arc::new(
-            SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap(),
-        ) as Arc<dyn UserRepository>;
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let user_repo =
+            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+                as Arc<dyn UserRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let role = create_user_role();
         let created_role = role_repo.create(role).await.unwrap();
@@ -234,12 +235,12 @@ mod tests {
     #[tokio::test]
     async fn test_cannot_delete_self() {
         let temp_dir = TempDir::new().unwrap();
-        let user_repo = Arc::new(
-            SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap(),
-        ) as Arc<dyn UserRepository>;
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let user_repo =
+            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+                as Arc<dyn UserRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let role = create_user_role();
         let created_role = role_repo.create(role).await.unwrap();
@@ -249,7 +250,7 @@ mod tests {
         let user = user_service
             .create_user(
                 "testuser".to_string(),
-                "pass123".to_string(),
+                "oldpass123".to_string(),
                 vec![created_role.id],
             )
             .await

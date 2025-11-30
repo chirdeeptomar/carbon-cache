@@ -34,7 +34,7 @@ pub struct DeleteResponse {
 pub struct CreateCacheRequest {
     pub name: String,
     #[serde(default = "default_eviction")]
-    pub eviction: String,  // "moka", "bounded", or "hybrid"
+    pub eviction: String, // "moka", "bounded", or "hybrid"
     #[serde(default)]
     pub mem_bytes: Option<u64>,
     #[serde(default)]

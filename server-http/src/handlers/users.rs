@@ -1,6 +1,6 @@
 use crate::dto::{
-    AssignRolesRequest, ChangePasswordRequest, CreateUserRequest, ErrorResponse,
-    ListUsersResponse, ResetPasswordRequest, UserResponse,
+    AssignRolesRequest, ChangePasswordRequest, CreateUserRequest, ErrorResponse, ListUsersResponse,
+    ResetPasswordRequest, UserResponse,
 };
 use crate::middleware::check_permission;
 use crate::state::AppState;
@@ -19,8 +19,8 @@ pub async fn create_user(
     Json(req): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<UserResponse>), (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has ManageUsers permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::ManageUsers)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::ManageUsers).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -52,8 +52,8 @@ pub async fn list_users(
     Extension(current_user): Extension<User>,
 ) -> Result<Json<ListUsersResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has ManageUsers permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::ManageUsers)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::ManageUsers).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -82,8 +82,8 @@ pub async fn get_user(
     Path(username): Path<String>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has ManageUsers permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::ManageUsers)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::ManageUsers).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -92,7 +92,10 @@ pub async fn get_user(
         Ok(user) => Ok(Json(user.into())),
         Err(e) => {
             error!("Failed to get user {}: {}", username, e);
-            Err((StatusCode::NOT_FOUND, Json(ErrorResponse::new(e.to_string()))))
+            Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(e.to_string())),
+            ))
         }
     }
 }
@@ -105,8 +108,8 @@ pub async fn assign_roles(
     Json(req): Json<AssignRolesRequest>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has ManageUsers permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::ManageUsers)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::ManageUsers).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -120,7 +123,10 @@ pub async fn assign_roles(
     let user = match state.user_service.get_user(&username).await {
         Ok(user) => user,
         Err(e) => {
-            return Err((StatusCode::NOT_FOUND, Json(ErrorResponse::new(e.to_string()))))
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(e.to_string())),
+            ))
         }
     };
 
@@ -149,9 +155,10 @@ pub async fn change_password(
 ) -> Result<Json<UserResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Users can change their own password, or admins can change any password
     let is_self = current_user.username == username;
-    let has_manage_users = check_permission(&state.auth_service, &current_user, Permission::ManageUsers)
-        .await
-        .is_ok();
+    let has_manage_users =
+        check_permission(&state.auth_service, &current_user, Permission::ManageUsers)
+            .await
+            .is_ok();
 
     if !is_self && !has_manage_users {
         return Err((
@@ -169,7 +176,10 @@ pub async fn change_password(
     let user = match state.user_service.get_user(&username).await {
         Ok(user) => user,
         Err(e) => {
-            return Err((StatusCode::NOT_FOUND, Json(ErrorResponse::new(e.to_string()))))
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(e.to_string())),
+            ))
         }
     };
 
@@ -197,8 +207,8 @@ pub async fn reset_password(
     Json(req): Json<ResetPasswordRequest>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has ManageUsers permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::ManageUsers)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::ManageUsers).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -212,7 +222,10 @@ pub async fn reset_password(
     let user = match state.user_service.get_user(&username).await {
         Ok(user) => user,
         Err(e) => {
-            return Err((StatusCode::NOT_FOUND, Json(ErrorResponse::new(e.to_string()))))
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(e.to_string())),
+            ))
         }
     };
 
@@ -239,8 +252,8 @@ pub async fn delete_user(
     Path(username): Path<String>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     // Check if current user has ManageUsers permission
-    if let Err(e) = check_permission(&state.auth_service, &current_user, Permission::ManageUsers)
-        .await
+    if let Err(e) =
+        check_permission(&state.auth_service, &current_user, Permission::ManageUsers).await
     {
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
@@ -254,7 +267,10 @@ pub async fn delete_user(
     let user = match state.user_service.get_user(&username).await {
         Ok(user) => user,
         Err(e) => {
-            return Err((StatusCode::NOT_FOUND, Json(ErrorResponse::new(e.to_string()))))
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(e.to_string())),
+            ))
         }
     };
 

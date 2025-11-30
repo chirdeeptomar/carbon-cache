@@ -1,10 +1,10 @@
+use bytes::Bytes;
 use carbon::auth::{AuthService, RoleService, UserService};
 use carbon::events::CacheItemEvent;
 use carbon::planes::control::CacheManager;
 use carbon::planes::data::CacheOperationsService;
-use storage_engine::UnifiedStorageFactory;
 use std::sync::Arc;
-use bytes::Bytes;
+use storage_engine::UnifiedStorageFactory;
 use tokio::sync::broadcast;
 
 /// Server state shared across handlers
@@ -31,7 +31,10 @@ impl AppState {
                 manager
             }
             Err(e) => {
-                tracing::warn!("Failed to initialize persistence: {}. Running in-memory mode.", e);
+                tracing::warn!(
+                    "Failed to initialize persistence: {}. Running in-memory mode.",
+                    e
+                );
                 CacheManager::new()
             }
         };

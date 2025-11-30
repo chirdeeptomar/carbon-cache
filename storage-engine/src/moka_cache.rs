@@ -12,15 +12,16 @@ use std::time::Duration;
 pub struct MokaCache<K, V>
 where
     K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    V: Debug + Clone + Send + Sync + 'static,
 {
     cache: Cache<K, V>,
 }
 
+/// Factory methods for MokaCache
 impl<K, V> MokaCache<K, V>
 where
     K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    V: Debug + Clone + Send + Sync + 'static,
 {
     /// Create a new unbounded Moka cache with optional default TTL
     pub fn new_unbounded(default_ttl: Option<Duration>) -> Self {
@@ -67,11 +68,12 @@ where
     }
 }
 
+/// Implement CacheStore trait for MokaCache
 #[async_trait]
 impl<K, V> CacheStore<K, V> for MokaCache<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    K: Debug + Hash + Eq + Send + Sync,
+    V: Debug + Clone + Send + Sync,
 {
     async fn put(&self, key: K, val: V, ttl: Option<TtlMs>) -> Result<PutResponse> {
         // Note: Moka uses global TTL configured at cache creation time
@@ -99,10 +101,11 @@ where
     }
 }
 
+/// Debug implementation for MokaCache
 impl<K, V> Debug for MokaCache<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    K: Debug + Hash + Eq + Send + Sync,
+    V: Debug + Clone + Send + Sync,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MokaCache")
@@ -115,7 +118,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
 
     #[tokio::test]
     async fn test_moka_cache_put_and_get() {
@@ -191,10 +194,7 @@ mod tests {
         let value = "ttl_value";
 
         // Put with TTL parameter (will be ignored, uses global TTL)
-        cache
-            .put(key, value, Some(TtlMs(100)))
-            .await
-            .unwrap();
+        cache.put(key, value, Some(TtlMs(100))).await.unwrap();
 
         // Should be available since no global TTL is set
         let get_response = cache.get(&key).await.unwrap();
@@ -203,11 +203,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_moka_cache_with_global_ttl() {
-        let cache = MokaCache::new(
-            "test".to_string(),
-            None,
-            Some(Duration::from_millis(100)),
-        );
+        let cache = MokaCache::new("test".to_string(), None, Some(Duration::from_millis(100)));
 
         let key = "global_ttl_key";
         let value = "global_ttl_value";

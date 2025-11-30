@@ -98,7 +98,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_foyer_cache_put_and_get() {
-        let cache = FoyerMemoryCache::new("test".to_string(),1024 * 1024); // 1MB
+        let cache = FoyerMemoryCache::new("test".to_string(), 1024 * 1024); // 1MB
 
         // Put a value
         let key = "hello";
@@ -135,7 +135,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_foyer_cache_get_nonexistent() {
-        let cache: FoyerMemoryCache<&str, &str> = FoyerMemoryCache::new("test".to_string(),1024 * 1024);
+        let cache: FoyerMemoryCache<&str, &str> =
+            FoyerMemoryCache::new("test".to_string(), 1024 * 1024);
 
         // Try to get a key that doesn't exist
         let result = cache.get(&"nonexistent").await;
@@ -162,7 +163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_foyer_cache_with_ttl() {
-        let cache = FoyerMemoryCache::new("test".to_string(),1024 * 1024);
+        let cache = FoyerMemoryCache::new("test".to_string(), 1024 * 1024);
 
         let key = "ttl_key";
         let value = "ttl_value";

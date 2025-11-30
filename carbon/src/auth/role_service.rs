@@ -116,9 +116,9 @@ mod tests {
     #[tokio::test]
     async fn test_create_role() {
         let temp_dir = TempDir::new().unwrap();
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);
 
@@ -139,9 +139,9 @@ mod tests {
     #[tokio::test]
     async fn test_update_role() {
         let temp_dir = TempDir::new().unwrap();
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);
 
@@ -171,9 +171,9 @@ mod tests {
     #[tokio::test]
     async fn test_initialize_default_roles() {
         let temp_dir = TempDir::new().unwrap();
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);
 
@@ -191,9 +191,9 @@ mod tests {
     #[tokio::test]
     async fn test_cannot_update_system_role() {
         let temp_dir = TempDir::new().unwrap();
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);
 
@@ -212,9 +212,9 @@ mod tests {
     #[tokio::test]
     async fn test_cannot_delete_system_role() {
         let temp_dir = TempDir::new().unwrap();
-        let role_repo = Arc::new(
-            SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap(),
-        ) as Arc<dyn RoleRepository>;
+        let role_repo =
+            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+                as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);
 

@@ -25,12 +25,7 @@ pub async fn put_value(
 
     match state
         .cache_operations
-        .put(
-            &cache_name,
-            key.into_bytes(),
-            Bytes::from(req.value),
-            ttl,
-        )
+        .put(&cache_name, key.into_bytes(), Bytes::from(req.value), ttl)
         .await
     {
         Ok(_) => Ok(Json(PutResponse { ok: true })),

@@ -12,8 +12,7 @@ use tower_http::trace::TraceLayer;
 /// Build and configure the application router
 pub fn build_router(state: AppState) -> Router {
     // Public routes (no authentication required)
-    let public_routes = Router::new()
-        .route("/health", get(handlers::health_check));
+    let public_routes = Router::new().route("/health", get(handlers::health_check));
 
     // Protected routes (authentication required)
     let protected_routes = Router::new()
@@ -33,8 +32,14 @@ pub fn build_router(state: AppState) -> Router {
         .route("/admin/users", get(handlers::list_users))
         .route("/admin/users/{username}", get(handlers::get_user))
         .route("/admin/users/{username}/roles", put(handlers::assign_roles))
-        .route("/admin/users/{username}/password", put(handlers::change_password))
-        .route("/admin/users/{username}/reset-password", put(handlers::reset_password))
+        .route(
+            "/admin/users/{username}/password",
+            put(handlers::change_password),
+        )
+        .route(
+            "/admin/users/{username}/reset-password",
+            put(handlers::reset_password),
+        )
         .route("/admin/users/{username}", delete(handlers::delete_user))
         // Role management routes - requires ManageRoles/AdminRead permission (checked in handlers)
         .route("/admin/roles", post(handlers::create_role))

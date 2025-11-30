@@ -1,14 +1,16 @@
 use crate::domain::response::{DeleteResponse, GetResponse, PutResponse};
-use crate::events::{now_timestamp, CacheItemEvent, ItemAddedEvent, ItemDeletedEvent, ItemUpdatedEvent};
+use crate::events::{
+    CacheItemEvent, ItemAddedEvent, ItemDeletedEvent, ItemUpdatedEvent, now_timestamp,
+};
 use crate::planes::control::CacheManager;
 use crate::planes::data::operation::CacheOperations;
 use crate::ports::CacheStore;
 use async_trait::async_trait;
+use bytes::Bytes;
 use shared::{Error, Result, TtlMs};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
-use bytes::Bytes;
 use tokio::sync::broadcast;
 
 /// Application service that orchestrates cache operations
@@ -23,6 +25,7 @@ where
     event_broadcaster: Option<broadcast::Sender<CacheItemEvent>>,
 }
 
+/// Factory methods to instantiate CacheOperationsService
 impl<K, V> CacheOperationsService<K, V>
 where
     K: Debug + Hash + Eq + Send + Sync + Clone + 'static,
@@ -143,30 +146,30 @@ impl CacheOperations<Vec<u8>, Bytes> for CacheOperationsService<Vec<u8>, Bytes> 
         let result = cache_store.delete(key).await?;
 
         // Broadcast event only if key actually existed (was deleted)
-        if result.deleted {
-            if let Some(ref broadcaster) = self.event_broadcaster {
-                let event = CacheItemEvent::Deleted(ItemDeletedEvent {
-                    cache_name: cache_name.to_string(),
-                    key: key.clone(),
-                    timestamp: now_timestamp(),
-                });
+        if result.deleted
+            && let Some(ref broadcaster) = self.event_broadcaster
+        {
+            let event = CacheItemEvent::Deleted(ItemDeletedEvent {
+                cache_name: cache_name.to_string(),
+                key: key.clone(),
+                timestamp: now_timestamp(),
+            });
 
-                match broadcaster.send(event) {
-                    Ok(subscriber_count) => {
-                        tracing::debug!(
-                            "Broadcasted deleted event for key '{:?}' in cache '{}' to {} subscriber(s)",
-                            String::from_utf8_lossy(key),
-                            cache_name,
-                            subscriber_count
-                        );
-                    }
-                    Err(_) => {
-                        tracing::warn!(
-                            "No subscribers for deleted event on key '{:?}' in cache '{}'",
-                            String::from_utf8_lossy(key),
-                            cache_name
-                        );
-                    }
+            match broadcaster.send(event) {
+                Ok(subscriber_count) => {
+                    tracing::debug!(
+                        "Broadcasted deleted event for key '{:?}' in cache '{}' to {} subscriber(s)",
+                        String::from_utf8_lossy(key),
+                        cache_name,
+                        subscriber_count
+                    );
+                }
+                Err(_) => {
+                    tracing::warn!(
+                        "No subscribers for deleted event on key '{:?}' in cache '{}'",
+                        String::from_utf8_lossy(key),
+                        cache_name
+                    );
                 }
             }
         }

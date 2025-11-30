@@ -22,9 +22,7 @@ async fn main() {
     let _profiler = dhat::Profiler::new_heap();
 
     // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     info!("Starting Carbon HTTP Server...");
 
@@ -45,9 +43,7 @@ async fn main() {
     let router = routes::build_router(state);
 
     // Start server
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
 
     info!("HTTP Server listening on http://0.0.0.0:8080");
     info!("Try: curl -u admin:admin123 http://localhost:8080/health");
@@ -59,7 +55,7 @@ async fn main() {
         .unwrap();
 
     info!("Server shutdown complete. Writing dhat profiling data...");
-    drop(_profiler);  // Explicitly drop profiler to write output
+    drop(_profiler); // Explicitly drop profiler to write output
     info!("Profiling data written to dhat-heap.json");
 }
 
@@ -139,7 +135,8 @@ async fn init_auth_system() -> (Arc<AuthService>, Arc<UserService>, Arc<RoleServ
         .expect("Admin role not found");
 
     // Check if default admin exists
-    let admin_username = std::env::var("CARBON_ADMIN_USERNAME").unwrap_or_else(|_| "admin".to_string());
+    let admin_username =
+        std::env::var("CARBON_ADMIN_USERNAME").unwrap_or_else(|_| "admin".to_string());
     let admin_exists = user_repo
         .username_exists(&admin_username)
         .await
