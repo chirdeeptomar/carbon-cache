@@ -342,7 +342,7 @@ mod tests {
         assert_eq!(found.unwrap().name, "admin");
 
         // Cannot delete system role
-        let mut system_role = Role::new("system".to_string(), HashSet::new(), true);
+        let system_role = Role::new("system".to_string(), HashSet::new(), true);
         let created_system = repo.create(system_role).await.unwrap();
 
         let delete_result = repo.delete(&created_system.id).await;
