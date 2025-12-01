@@ -1,31 +1,7 @@
 use carbon::auth::{Permission, Role, User};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashSet;
-
-// User DTOs
-#[derive(Debug, Deserialize)]
-pub struct CreateUserRequest {
-    pub username: String,
-    pub password: String,
-    pub role_ids: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct AssignRolesRequest {
-    pub role_ids: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ChangePasswordRequest {
-    pub old_password: String,
-    pub new_password: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ResetPasswordRequest {
-    pub new_password: String,
-}
 
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
@@ -51,18 +27,6 @@ impl From<User> for UserResponse {
 #[derive(Debug, Serialize)]
 pub struct ListUsersResponse {
     pub users: Vec<UserResponse>,
-}
-
-// Role DTOs
-#[derive(Debug, Deserialize)]
-pub struct CreateRoleRequest {
-    pub name: String,
-    pub permissions: HashSet<Permission>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateRoleRequest {
-    pub permissions: HashSet<Permission>,
 }
 
 #[derive(Debug, Serialize)]
@@ -103,4 +67,42 @@ impl ErrorResponse {
             error: error.into(),
         }
     }
+}
+
+// === Cache Operation Models ===
+
+#[derive(Serialize)]
+pub struct PutResponse {
+    pub ok: bool,
+}
+
+#[derive(Serialize)]
+pub struct GetResponse {
+    pub found: bool,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub value: String,
+    pub ttl_ms_remaining: u64,
+}
+
+#[derive(Serialize)]
+pub struct DeleteResponse {
+    pub deleted: bool,
+}
+
+#[derive(Serialize)]
+pub struct CreateCacheResponse {
+    pub created: bool,
+    pub message: String,
+}
+
+#[derive(Serialize)]
+pub struct DropCacheResponse {
+    pub dropped: bool,
+}
+
+#[derive(Serialize)]
+pub struct ValidationErrorResponse {
+    pub error: String,
+    pub field: Option<String>,
+    pub details: Option<String>,
 }

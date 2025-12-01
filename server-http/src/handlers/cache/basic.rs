@@ -1,4 +1,4 @@
-use crate::models::{DeleteResponse, GetResponse, PutRequest, PutResponse};
+use crate::api::{DeleteResponse, GetResponse, PutRequest, PutResponse};
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},

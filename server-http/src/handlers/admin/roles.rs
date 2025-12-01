@@ -1,4 +1,4 @@
-use crate::dto::{
+use crate::api::{
     CreateRoleRequest, ErrorResponse, ListRolesResponse, RoleResponse, UpdateRoleRequest,
 };
 use crate::middleware::check_permission;

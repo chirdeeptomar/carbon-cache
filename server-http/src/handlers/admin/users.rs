@@ -1,4 +1,4 @@
-use crate::dto::{
+use crate::api::{
     AssignRolesRequest, ChangePasswordRequest, CreateUserRequest, ErrorResponse, ListUsersResponse,
     ResetPasswordRequest, UserResponse,
 };

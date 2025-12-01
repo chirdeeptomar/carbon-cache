@@ -1,0 +1,102 @@
+@hostname = localhost
+@port = 8080
+@protocol = http
+@host = {{protocol}}://{{hostname}}:{{port}}
+@contentType = application/json
+@admin = Basic YWRtaW46YWRtaW4xMjM=
+
+### Get health status
+GET {{host}}/health
+
+### Get all roles
+GET {{host}}/admin/roles
+Authorization: {{admin}}
+
+### Crete a new read only user
+POST {{host}}/admin/users
+Content-Type: {{contentType}}
+Authorization: {{admin}}
+
+{
+    "username": "reader",
+    "password": "readerPass123",
+    "role_ids": ["cb65106d-fd17-4933-9a32-92a3eb9fa1fd"]
+}
+
+### Crete a new read-write user
+POST {{host}}/admin/users
+Content-Type: {{contentType}}
+Authorization: {{admin}}
+
+{
+    "username": "writer",
+    "password": "writerPass123",
+    "role_ids": ["b8405258-7fde-4266-8967-5d279f7011e5"]
+}
+
+### Get all users
+GET {{host}}/admin/users
+Authorization: {{admin}}
+
+### Get user by username
+GET {{host}}/admin/users/reader
+Authorization: {{admin}}
+
+### Delete user by username
+DELETE {{host}}/admin/users/reader
+Authorization: {{admin}}
+
+### Get all caches
+GET {{host}}/admin/caches
+Authorization: {{admin}}
+
+### Create a new cache with time to live based eviction
+POST {{host}}/admin/caches
+Content-Type: {{contentType}}
+Authorization: {{admin}}
+
+{
+    "name": "test-timed",
+    "description": "Time-based cache with 1 minute TTL",
+    "tags": {"env": "production", "type": "ttl"},
+    "eviction": "ttl",
+    "default_ttl_ms": 60000
+}
+
+### Create a new cache with storage size based eviction
+POST {{host}}/admin/caches
+Content-Type: {{contentType}}
+Authorization: {{admin}}
+
+{
+    "name": "test-sized",
+    "description": "Size-based cache with 1 MB memory limit",
+    "tags": {"env": "production", "type": "size"},
+    "eviction": "size",
+    "mem_bytes": 1048576
+}
+
+### Describe a cache
+GET {{host}}/admin/caches/test-sized
+Authorization: {{admin}}
+
+### Drop a cache
+DELETE {{host}}/admin/caches/test-sized
+Authorization: {{admin}}
+
+### Put an entry into a cache
+PUT {{host}}/cache/test-timed/1
+Content-Type: {{contentType}}
+Authorization: {{admin}}
+
+{
+    "value": "world"
+}
+
+### Get an entry from the cache
+GET {{host}}/cache/test-timed/1
+Authorization: {{admin}}
+
+### Delete an entry from the cache
+DELETE {{host}}/cache/test-timed/1
+Authorization: {{admin}}

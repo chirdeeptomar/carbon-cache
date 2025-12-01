@@ -1,4 +1,4 @@
-use crate::models::CreateCacheRequest;
+use crate::api::requests::CreateCacheRequest;
 use carbon::domain::{CacheConfig, CacheEvictionStrategy, EvictionAlgorithm};
 
 // Constants for validation ranges
@@ -104,7 +104,7 @@ impl CacheConfigFactory {
 
     fn parse_policy(policy: &str) -> Result<EvictionAlgorithm, ValidationError> {
         if policy.is_empty() {
-            return Ok(EvictionAlgorithm::TinyLfu); // Default
+            return Ok(EvictionAlgorithm::Unspecified); // Default
         }
 
         match policy.to_lowercase().as_str() {
@@ -124,7 +124,7 @@ impl CacheConfigFactory {
                 // TTL cache - all fields optional, will use defaults
                 // If mem_bytes is provided, validate it
                 if let Some(mem_bytes) = req.mem_bytes {
-                    if mem_bytes < MIN_MEM_BYTES || mem_bytes > MAX_MEM_BYTES {
+                    if !(MIN_MEM_BYTES..=MAX_MEM_BYTES).contains(&mem_bytes) {
                         return Err(ValidationError::OutOfRange {
                             field: "mem_bytes",
                             value: mem_bytes,
@@ -143,7 +143,7 @@ impl CacheConfigFactory {
                 })?;
 
                 // Validate range
-                if mem_bytes < MIN_MEM_BYTES || mem_bytes > MAX_MEM_BYTES {
+                if !(MIN_MEM_BYTES..=MAX_MEM_BYTES).contains(&mem_bytes) {
                     return Err(ValidationError::OutOfRange {
                         field: "mem_bytes",
                         value: mem_bytes,
@@ -169,7 +169,7 @@ impl CacheConfigFactory {
                 }
 
                 // Validate range
-                if mem_bytes < MIN_MEM_BYTES || mem_bytes > MAX_MEM_BYTES {
+                if !(MIN_MEM_BYTES..=MAX_MEM_BYTES).contains(&mem_bytes) {
                     return Err(ValidationError::OutOfRange {
                         field: "mem_bytes",
                         value: mem_bytes,
