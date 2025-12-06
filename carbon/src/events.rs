@@ -32,7 +32,8 @@ pub struct ItemAddedEvent {
     pub cache_name: String,
     #[serde(with = "serde_bytes")]
     pub key: Vec<u8>,
-    pub value_size: usize,
+    #[serde(with = "serde_bytes")]
+    pub value: Vec<u8>,
     pub ttl_ms: Option<u64>,
     pub timestamp: u64,
 }
@@ -42,7 +43,8 @@ pub struct ItemUpdatedEvent {
     pub cache_name: String,
     #[serde(with = "serde_bytes")]
     pub key: Vec<u8>,
-    pub value_size: usize,
+    #[serde(with = "serde_bytes")]
+    pub value: Vec<u8>,
     pub ttl_ms: Option<u64>,
     pub timestamp: u64,
 }

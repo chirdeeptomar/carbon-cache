@@ -1,9 +1,10 @@
 use bytes::Bytes;
-use carbon::auth::{AuthService, RoleService, UserService};
+use carbon::auth::{AuthService, MokaSessionRepository, RoleService, SessionStore, UserService};
 use carbon::events::CacheItemEvent;
 use carbon::planes::control::CacheManager;
 use carbon::planes::data::CacheOperationsService;
 use std::sync::Arc;
+use std::time::Duration;
 use storage_engine::UnifiedStorageFactory;
 use tokio::sync::broadcast;
 
@@ -16,6 +17,7 @@ pub struct AppState {
     pub auth_service: Arc<AuthService>,
     pub user_service: Arc<UserService>,
     pub role_service: Arc<RoleService>,
+    pub session_store: Arc<SessionStore<MokaSessionRepository>>,
 }
 
 impl AppState {
@@ -23,6 +25,7 @@ impl AppState {
         auth_service: Arc<AuthService>,
         user_service: Arc<UserService>,
         role_service: Arc<RoleService>,
+        session_store: Arc<SessionStore<MokaSessionRepository>>,
     ) -> Self {
         // Try to initialize with persistence, fall back to in-memory if it fails
         let cache_manager = match Self::init_with_persistence().await {
@@ -55,6 +58,7 @@ impl AppState {
             auth_service,
             user_service,
             role_service,
+            session_store,
         }
     }
 

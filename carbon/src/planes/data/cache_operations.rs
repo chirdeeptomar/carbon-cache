@@ -83,52 +83,51 @@ impl CacheOperations<Vec<u8>, Bytes> for CacheOperationsService<Vec<u8>, Bytes> 
     ) -> Result<PutResponse> {
         let cache_store = self.get_cache_store(cache_name).await?;
 
-        // Check if key exists to determine if this is an add or update
-        let existed = cache_store.get(&key).await.is_ok();
+        // Check existence of a key in the cache ONLY if we have a broadcaster
+        let existed = if self.event_broadcaster.is_some() {
+            cache_store.exists(&key).await?.exists
+        } else {
+            false
+        };
 
         // Perform the put operation
         let result = cache_store.put(key.clone(), value.clone(), ttl).await?;
 
-        // Broadcast event if broadcaster is configured
-        if let Some(ref broadcaster) = self.event_broadcaster {
-            let event_type = if existed { "updated" } else { "added" };
-            let event = if existed {
-                CacheItemEvent::Updated(ItemUpdatedEvent {
-                    cache_name: cache_name.to_string(),
-                    key: key.clone(),
-                    value_size: value.len(),
-                    ttl_ms: ttl.map(|t| t.0),
-                    timestamp: now_timestamp(),
-                })
-            } else {
-                CacheItemEvent::Added(ItemAddedEvent {
-                    cache_name: cache_name.to_string(),
-                    key: key.clone(),
-                    value_size: value.len(),
-                    ttl_ms: ttl.map(|t| t.0),
-                    timestamp: now_timestamp(),
-                })
-            };
-
-            match broadcaster.send(event) {
-                Ok(subscriber_count) => {
-                    tracing::debug!(
-                        "Broadcasted {} event for key '{:?}' in cache '{}' to {} subscriber(s)",
-                        event_type,
-                        String::from_utf8_lossy(&key),
+        if let Some(broadcaster) = self.event_broadcaster.clone() {
+            let cache_name = cache_name.to_string();
+            tokio::spawn(async move {
+                // Broadcast event if broadcaster is configured
+                let event = if existed {
+                    CacheItemEvent::Updated(ItemUpdatedEvent {
                         cache_name,
-                        subscriber_count
-                    );
+                        key,
+                        value: value.to_vec(),
+                        ttl_ms: ttl.map(|t| t.0),
+                        timestamp: now_timestamp(),
+                    })
+                } else {
+                    CacheItemEvent::Added(ItemAddedEvent {
+                        cache_name,
+                        key,
+                        value: value.to_vec(),
+                        ttl_ms: ttl.map(|t| t.0),
+                        timestamp: now_timestamp(),
+                    })
+                };
+
+                match broadcaster.send(event) {
+                    Ok(count) => {
+                        tracing::debug!(
+                            "Broadcasted {} event to {} subscriber(s)",
+                            if existed { "updated" } else { "added" },
+                            count
+                        );
+                    }
+                    Err(_) => {
+                        tracing::warn!("No subscribers for event");
+                    }
                 }
-                Err(_) => {
-                    tracing::warn!(
-                        "No subscribers for {} event on key '{:?}' in cache '{}'",
-                        event_type,
-                        String::from_utf8_lossy(&key),
-                        cache_name
-                    );
-                }
-            }
+            });
         }
 
         Ok(result)

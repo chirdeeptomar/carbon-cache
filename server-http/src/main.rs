@@ -6,11 +6,12 @@ mod state;
 mod validation;
 
 use carbon::auth::{
-    defaults::create_default_admin, AuthService, RoleService, SledRoleRepository,
-    SledUserRepository, UserRepository, UserService,
+    defaults::create_default_admin, AuthService, MokaSessionRepository, RoleService,
+    SledRoleRepository, SledUserRepository, SessionStore, UserRepository, UserService,
 };
 use state::AppState;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{info, warn, Level};
 
 #[global_allocator]
@@ -35,8 +36,16 @@ async fn main() {
     info!("Initializing authentication system...");
     let (auth_service, user_service, role_service) = init_auth_system().await;
 
+    // Initialize session store (1 hour TTL)
+    info!("Initializing session store...");
+    let session_repository = Arc::new(MokaSessionRepository::new(
+        None,                               // No max sessions limit
+        Some(Duration::from_secs(3600)),    // 1 hour TTL
+    ));
+    let session_store = Arc::new(SessionStore::new(session_repository));
+
     // Initialize state
-    let state = AppState::new(auth_service, user_service, role_service).await;
+    let state = AppState::new(auth_service, user_service, role_service, session_store).await;
 
     // Build router
     let router = routes::build_router(state);

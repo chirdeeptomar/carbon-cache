@@ -94,6 +94,17 @@ pub mod response {
             Self { deleted }
         }
     }
+
+    #[derive(Clone, Debug)]
+    pub struct ExistsResponse {
+        pub exists: bool,
+    }
+
+    impl ExistsResponse {
+        pub fn new(exists: bool) -> Self {
+            Self { exists }
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize)]

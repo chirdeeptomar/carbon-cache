@@ -8,6 +8,14 @@
 ### Get health status
 GET {{host}}/health
 
+### Login user (admin)
+POST {{host}}/auth/login
+Authorization: {{admin}}
+
+### Logout user (admin)
+POST {{host}}/auth/logout
+Authorization: Bearer de37bc8f357ee8d3a338372624715e8f72d84ccedd5d726d198ee5bff7cbab00
+
 ### Get all roles
 GET {{host}}/admin/roles
 Authorization: {{admin}}

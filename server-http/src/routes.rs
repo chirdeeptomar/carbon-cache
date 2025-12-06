@@ -1,5 +1,5 @@
 use crate::handlers;
-use crate::middleware::auth_middleware;
+use crate::middleware::{auth_middleware, AuthMiddlewareState};
 use crate::state::AppState;
 use axum::{
     middleware,
@@ -12,7 +12,26 @@ use tower_http::trace::TraceLayer;
 /// Build and configure the application router
 pub fn build_router(state: AppState) -> Router {
     // Public routes (no authentication required)
-    let public_routes = Router::new().route("/health", get(handlers::health_check));
+    let public_routes = Router::new()
+        .route("/health", get(handlers::health_check))
+        .with_state(state.clone());
+
+    // Auth routes (login/logout endpoints)
+    let auth_state = handlers::AuthHandlerState {
+        auth_service: state.auth_service.clone(),
+        session_store: state.session_store.clone(),
+    };
+
+    let auth_routes = Router::new()
+        .route("/auth/login", post(handlers::login))
+        .route("/auth/logout", post(handlers::logout))
+        .with_state(auth_state);
+
+    // Create auth middleware state
+    let auth_state = AuthMiddlewareState {
+        auth_service: state.auth_service.clone(),
+        session_store: state.session_store.clone(),
+    };
 
     // Protected routes (authentication required)
     let protected_routes = Router::new()
@@ -49,13 +68,14 @@ pub fn build_router(state: AppState) -> Router {
         .route("/admin/roles/{name}", delete(handlers::delete_role))
         // Apply authentication middleware to all protected routes
         .layer(middleware::from_fn_with_state(
-            state.auth_service.clone(),
+            auth_state,
             auth_middleware,
         ));
 
     // Combine routes
     Router::new()
         .merge(public_routes)
+        .merge(auth_routes)
         .merge(protected_routes)
         .layer(NormalizePathLayer::trim_trailing_slash())
         .layer(TraceLayer::new_for_http())

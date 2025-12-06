@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use carbon::domain::response::{DeleteResponse, GetResponse, PutResponse};
+use carbon::domain::response::{DeleteResponse, ExistsResponse, GetResponse, PutResponse};
 use carbon::ports::CacheStore;
 use moka::future::Cache;
 use shared::{Error, Result, TtlMs};
@@ -98,6 +98,10 @@ where
     async fn delete(&self, key: &K) -> Result<DeleteResponse> {
         let existed = self.cache.remove(key).await.is_some();
         Ok(DeleteResponse::new(existed))
+    }
+
+    async fn exists(&self, key: &K) -> Result<ExistsResponse> {
+        Ok(ExistsResponse::new(self.cache.contains_key(key)))
     }
 }
 

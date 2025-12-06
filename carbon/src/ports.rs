@@ -1,6 +1,7 @@
 #![deny(clippy::all)]
 
 use crate::domain::CacheConfig;
+use crate::domain::response::ExistsResponse;
 use crate::domain::response::admin::CreateCacheResponse;
 use crate::domain::response::{
     DeleteResponse, GetResponse, PutResponse,
@@ -21,6 +22,7 @@ pub trait StorageFactory<K, V>: Send + Sync + 'static {
 /// Port for cache operations (e.g., Foyer)
 #[async_trait]
 pub trait CacheStore<K, V>: Send + Sync + 'static {
+    async fn exists(&self, key: &K) -> Result<ExistsResponse>;
     async fn put(&self, key: K, val: V, ttl: Option<TtlMs>) -> Result<PutResponse>;
     async fn get(&self, key: &K) -> Result<GetResponse<V>>;
     async fn delete(&self, key: &K) -> Result<DeleteResponse>;
