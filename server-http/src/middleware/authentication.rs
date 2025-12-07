@@ -1,11 +1,11 @@
 use axum::{
-    extract::{Request, State, ConnectInfo},
+    extract::{ConnectInfo, Request, State},
     http::{header, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
-use carbon::auth::{current_timestamp_ms, AuthService, MokaSessionRepository, SessionStore, User};
+use carbon::auth::{AuthService, MokaSessionRepository, SessionStore, User};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -78,7 +78,8 @@ pub async fn auth_middleware(
 
     // OPTIMIZATION: Check for existing valid session FIRST (avoids expensive Argon2 verification)
     // This is the fast path - only does 1ms session lookup instead of 250ms Argon2
-    if let Ok(Some(mut session)) = state.session_store
+    if let Ok(Some(mut session)) = state
+        .session_store
         .get_existing_user_session(&username)
         .await
     {
@@ -138,9 +139,12 @@ pub async fn auth_middleware(
         .insert("X-Session-Token", session.token.parse().unwrap());
 
     // Transparency header - indicates if session was reused or created
-    response
-        .headers_mut()
-        .insert("X-Session-Reused", if session_reused { "true" } else { "false" }.parse().unwrap());
+    response.headers_mut().insert(
+        "X-Session-Reused",
+        if session_reused { "true" } else { "false" }
+            .parse()
+            .unwrap(),
+    );
 
     Ok(response)
 }

@@ -34,7 +34,6 @@ pub struct ItemAddedEvent {
     pub key: Vec<u8>,
     #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
-    pub ttl_ms: Option<u64>,
     pub timestamp: u64,
 }
 
@@ -45,7 +44,6 @@ pub struct ItemUpdatedEvent {
     pub key: Vec<u8>,
     #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
-    pub ttl_ms: Option<u64>,
     pub timestamp: u64,
 }
 

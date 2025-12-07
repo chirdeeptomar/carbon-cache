@@ -7,7 +7,7 @@ use crate::planes::data::operation::CacheOperations;
 use crate::ports::CacheStore;
 use async_trait::async_trait;
 use bytes::Bytes;
-use shared::{Error, Result, TtlMs};
+use shared::{Error, Result};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -74,13 +74,7 @@ where
 #[async_trait]
 impl CacheOperations<Vec<u8>, Bytes> for CacheOperationsService<Vec<u8>, Bytes> {
     /// Execute a PUT operation on a named cache with event broadcasting
-    async fn put(
-        &self,
-        cache_name: &str,
-        key: Vec<u8>,
-        value: Bytes,
-        ttl: Option<TtlMs>,
-    ) -> Result<PutResponse> {
+    async fn put(&self, cache_name: &str, key: Vec<u8>, value: Bytes) -> Result<PutResponse> {
         let cache_store = self.get_cache_store(cache_name).await?;
 
         // Check existence of a key in the cache ONLY if we have a broadcaster
@@ -91,7 +85,7 @@ impl CacheOperations<Vec<u8>, Bytes> for CacheOperationsService<Vec<u8>, Bytes> 
         };
 
         // Perform the put operation
-        let result = cache_store.put(key.clone(), value.clone(), ttl).await?;
+        let result = cache_store.put(key.clone(), value.clone()).await?;
 
         if let Some(broadcaster) = self.event_broadcaster.clone() {
             let cache_name = cache_name.to_string();
@@ -102,7 +96,6 @@ impl CacheOperations<Vec<u8>, Bytes> for CacheOperationsService<Vec<u8>, Bytes> 
                         cache_name,
                         key,
                         value: value.to_vec(),
-                        ttl_ms: ttl.map(|t| t.0),
                         timestamp: now_timestamp(),
                     })
                 } else {
@@ -110,7 +103,6 @@ impl CacheOperations<Vec<u8>, Bytes> for CacheOperationsService<Vec<u8>, Bytes> 
                         cache_name,
                         key,
                         value: value.to_vec(),
-                        ttl_ms: ttl.map(|t| t.0),
                         timestamp: now_timestamp(),
                     })
                 };

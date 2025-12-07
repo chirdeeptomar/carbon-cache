@@ -40,8 +40,6 @@ pub struct UpdateRoleRequest {
 #[derive(Deserialize)]
 pub struct PutRequest {
     pub value: String,
-    #[serde(default)]
-    pub ttl_ms: u64,
 }
 
 // === Admin Operation Models ===

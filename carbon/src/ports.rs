@@ -23,7 +23,7 @@ pub trait StorageFactory<K, V>: Send + Sync + 'static {
 #[async_trait]
 pub trait CacheStore<K, V>: Send + Sync + 'static {
     async fn exists(&self, key: &K) -> Result<ExistsResponse>;
-    async fn put(&self, key: K, val: V, ttl: Option<TtlMs>) -> Result<PutResponse>;
+    async fn put(&self, key: K, val: V) -> Result<PutResponse>;
     async fn get(&self, key: &K) -> Result<GetResponse<V>>;
     async fn delete(&self, key: &K) -> Result<DeleteResponse>;
 }

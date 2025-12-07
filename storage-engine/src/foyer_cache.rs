@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use carbon::domain::response::{DeleteResponse, ExistsResponse, GetResponse, PutResponse};
 use carbon::ports::CacheStore;
 use foyer::{Cache, CacheBuilder};
-use shared::{Error, Result, TtlMs};
+use shared::{Error, Result};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -49,17 +49,7 @@ where
     K: Debug + Hash + Eq + Send + Sync + 'static,
     V: Debug + Send + Sync + Clone + 'static,
 {
-    async fn put(&self, key: K, val: V, _ttl: Option<TtlMs>) -> Result<PutResponse> {
-        // TODO: Foyer doesn't have built-in per-entry TTL in the basic API
-        // Would need to implement a separate TTL tracking mechanism with background cleanup
-        if _ttl.is_some() {
-            // For now, just log that TTL is requested but not implemented
-            // In production, you'd want to either:
-            // 1. Use a wrapper that tracks expiry times
-            // 2. Use Foyer's hybrid cache with custom eviction
-            // 3. Implement a background task to clean up expired entries
-        }
-
+    async fn put(&self, key: K, val: V) -> Result<PutResponse> {
         self.cache.insert(key, val);
         Ok(PutResponse::new(true, "Successfully inserted"))
     }
@@ -107,7 +97,7 @@ mod tests {
         // Put a value
         let key = "hello";
         let value = "world";
-        let put_response = cache.put(key, value, None).await.unwrap();
+        let put_response = cache.put(key, value).await.unwrap();
         assert!(put_response.created);
         assert_eq!(put_response.message, "Successfully inserted");
 
@@ -125,7 +115,7 @@ mod tests {
         let value = "test_value";
 
         // Put a value
-        cache.put(key, value, None).await.unwrap();
+        cache.put(key, value).await.unwrap();
 
         // Delete the value
         let delete_response = cache.delete(&key).await.unwrap();
@@ -155,10 +145,10 @@ mod tests {
         let key = "key";
 
         // Put initial value
-        cache.put(key, "value1", None).await.unwrap();
+        cache.put(key, "value1").await.unwrap();
 
         // Overwrite with new value
-        cache.put(key, "value2", None).await.unwrap();
+        cache.put(key, "value2").await.unwrap();
 
         // Get the value - should be the new one
         let get_response = cache.get(&key).await.unwrap();
@@ -173,7 +163,7 @@ mod tests {
         let value = "ttl_value";
 
         // Put with TTL (note: currently not enforced, just accepted)
-        let put_response = cache.put(key, value, Some(TtlMs(5000))).await.unwrap();
+        let put_response = cache.put(key, value).await.unwrap();
         assert!(put_response.created);
 
         // Should still be able to get it immediately

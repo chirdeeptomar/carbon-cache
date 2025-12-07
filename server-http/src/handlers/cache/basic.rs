@@ -17,15 +17,9 @@ pub async fn put_value(
 ) -> Result<Json<PutResponse>, StatusCode> {
     info!("PUT: cache={}, key={}", cache_name, key);
 
-    let ttl = if req.ttl_ms > 0 {
-        Some(shared::TtlMs(req.ttl_ms))
-    } else {
-        None
-    };
-
     match state
         .cache_operations
-        .put(&cache_name, key.into_bytes(), Bytes::from(req.value), ttl)
+        .put(&cache_name, key.into_bytes(), Bytes::from(req.value))
         .await
     {
         Ok(_) => Ok(Json(PutResponse { ok: true })),

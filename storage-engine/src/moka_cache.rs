@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use carbon::domain::response::{DeleteResponse, ExistsResponse, GetResponse, PutResponse};
 use carbon::ports::CacheStore;
 use moka::future::Cache;
-use shared::{Error, Result, TtlMs};
+use shared::{Error, Result};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
@@ -75,15 +75,7 @@ where
     K: Debug + Hash + Eq + Send + Sync,
     V: Debug + Clone + Send + Sync,
 {
-    async fn put(&self, key: K, val: V, ttl: Option<TtlMs>) -> Result<PutResponse> {
-        // Note: Moka uses global TTL configured at cache creation time
-        // Per-entry TTL is not directly supported in current moka version
-        // If per-entry TTL is requested, we use the global TTL instead
-        if ttl.is_some() {
-            // Log that per-entry TTL is being ignored (would need logging setup)
-            // For now, just use the global TTL configured in the cache builder
-        }
-
+    async fn put(&self, key: K, val: V) -> Result<PutResponse> {
         self.cache.insert(key, val).await;
         Ok(PutResponse::new(true, "Successfully inserted"))
     }
@@ -131,7 +123,7 @@ mod tests {
         // Put a value
         let key = "hello";
         let value = "world";
-        let put_response = cache.put(key, value, None).await.unwrap();
+        let put_response = cache.put(key, value).await.unwrap();
         assert!(put_response.created);
         assert_eq!(put_response.message, "Successfully inserted");
 
@@ -149,7 +141,7 @@ mod tests {
         let value = "test_value";
 
         // Put a value
-        cache.put(key, value, None).await.unwrap();
+        cache.put(key, value).await.unwrap();
 
         // Delete the value
         let delete_response = cache.delete(&key).await.unwrap();
@@ -178,10 +170,10 @@ mod tests {
         let key = "key";
 
         // Put initial value
-        cache.put(key, "value1", None).await.unwrap();
+        cache.put(key, "value1").await.unwrap();
 
         // Overwrite with new value
-        cache.put(key, "value2", None).await.unwrap();
+        cache.put(key, "value2").await.unwrap();
 
         // Get the value - should be the new one
         let get_response = cache.get(&key).await.unwrap();
@@ -198,7 +190,7 @@ mod tests {
         let value = "ttl_value";
 
         // Put with TTL parameter (will be ignored, uses global TTL)
-        cache.put(key, value, Some(TtlMs(100))).await.unwrap();
+        cache.put(key, value).await.unwrap();
 
         // Should be available since no global TTL is set
         let get_response = cache.get(&key).await.unwrap();
@@ -213,7 +205,7 @@ mod tests {
         let value = "global_ttl_value";
 
         // Put without specific TTL (uses global)
-        cache.put(key, value, None).await.unwrap();
+        cache.put(key, value).await.unwrap();
 
         // Should be available immediately
         let get_response = cache.get(&key).await.unwrap();
@@ -233,9 +225,9 @@ mod tests {
         let cache = MokaCache::new_bounded(2, None); // Max 2 entries
 
         // Insert 3 entries
-        cache.put("key1", "value1", None).await.unwrap();
-        cache.put("key2", "value2", None).await.unwrap();
-        cache.put("key3", "value3", None).await.unwrap();
+        cache.put("key1", "value1").await.unwrap();
+        cache.put("key2", "value2").await.unwrap();
+        cache.put("key3", "value3").await.unwrap();
 
         // Wait for eviction to take effect
         sleep(Duration::from_millis(50)).await;
