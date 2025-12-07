@@ -25,13 +25,13 @@ echo -e "${BLUE}Scenario 1: Sequential Requests (Baseline)${NC}"
 echo "Testing 50 sequential requests to measure session reuse..."
 echo ""
 
-START=$(date +%s%3N)
+START=$(python3 -c 'import time; print(int(time.time() * 1000))')
 for i in {1..50}; do
   curl -s -u $USER:$PASS -X PUT "$URL/cache/test/key$i" \
     -H "Content-Type: application/json" \
     -d '{"value": "test"}' > /dev/null
 done
-END=$(date +%s%3N)
+END=$(python3 -c 'import time; print(int(time.time() * 1000))')
 
 SEQUENTIAL_TIME=$((END - START))
 SEQUENTIAL_AVG=$((SEQUENTIAL_TIME / 50))
@@ -43,11 +43,11 @@ echo -e "${BLUE}Scenario 2: Low Concurrency (10 parallel requests)${NC}"
 echo "Testing lock contention with 10 concurrent requests..."
 echo ""
 
-START=$(date +%s%3N)
+START=$(python3 -c 'import time; print(int(time.time() * 1000))')
 seq 1 10 | xargs -P 10 -I {} curl -s -u $USER:$PASS -X PUT "$URL/cache/test/key{}" \
   -H "Content-Type: application/json" \
   -d '{"value": "test"}' > /dev/null
-END=$(date +%s%3N)
+END=$(python3 -c 'import time; print(int(time.time() * 1000))')
 
 LOW_CONC_TIME=$((END - START))
 LOW_CONC_AVG=$((LOW_CONC_TIME / 10))
@@ -59,11 +59,11 @@ echo -e "${BLUE}Scenario 3: Medium Concurrency (50 parallel requests)${NC}"
 echo "Testing lock contention with 50 concurrent requests..."
 echo ""
 
-START=$(date +%s%3N)
+START=$(python3 -c 'import time; print(int(time.time() * 1000))')
 seq 1 50 | xargs -P 50 -I {} curl -s -u $USER:$PASS -X PUT "$URL/cache/test/key{}" \
   -H "Content-Type: application/json" \
   -d '{"value": "test"}' > /dev/null
-END=$(date +%s%3N)
+END=$(python3 -c 'import time; print(int(time.time() * 1000))')
 
 MED_CONC_TIME=$((END - START))
 MED_CONC_AVG=$((MED_CONC_TIME / 50))
@@ -75,11 +75,11 @@ echo -e "${BLUE}Scenario 4: High Concurrency (100 parallel requests)${NC}"
 echo "Testing lock contention with 100 concurrent requests..."
 echo ""
 
-START=$(date +%s%3N)
+START=$(python3 -c 'import time; print(int(time.time() * 1000))')
 seq 1 100 | xargs -P 100 -I {} curl -s -u $USER:$PASS -X PUT "$URL/cache/test/key{}" \
   -H "Content-Type: application/json" \
   -d '{"value": "test"}' > /dev/null
-END=$(date +%s%3N)
+END=$(python3 -c 'import time; print(int(time.time() * 1000))')
 
 HIGH_CONC_TIME=$((END - START))
 HIGH_CONC_AVG=$((HIGH_CONC_TIME / 100))
@@ -91,11 +91,11 @@ echo -e "${BLUE}Scenario 5: Very High Concurrency (200 parallel requests)${NC}"
 echo "Testing extreme lock contention..."
 echo ""
 
-START=$(date +%s%3N)
+START=$(python3 -c 'import time; print(int(time.time() * 1000))')
 seq 1 200 | xargs -P 200 -I {} curl -s -u $USER:$PASS -X PUT "$URL/cache/test/key{}" \
   -H "Content-Type: application/json" \
   -d '{"value": "test"}' > /dev/null
-END=$(date +%s%3N)
+END=$(python3 -c 'import time; print(int(time.time() * 1000))')
 
 VHIGH_CONC_TIME=$((END - START))
 VHIGH_CONC_AVG=$((VHIGH_CONC_TIME / 200))
