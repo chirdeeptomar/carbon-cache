@@ -3,10 +3,10 @@ use super::session::{generate_session_token, Session, SessionToken};
 use super::session_store::SessionRepository;
 use async_trait::async_trait;
 use moka::future::Cache;
+use parking_lot::RwLock;
 use shared::Result;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
 
 /// Username type alias
 pub type Username = String;
@@ -65,7 +65,7 @@ impl SessionRepository for MokaSessionRepository {
             .unwrap_or_else(|| Arc::new(RwLock::new(Vec::new())));
 
         {
-            let mut tokens = tokens_lock.write().await;
+            let mut tokens = tokens_lock.write();
             tokens.push(token.clone());
         }
 
@@ -100,7 +100,7 @@ impl SessionRepository for MokaSessionRepository {
         if let Some(data) = &session {
             // Remove from username index
             if let Some(tokens_lock) = self.user_sessions.get(&data.user.username).await {
-                let mut tokens = tokens_lock.write().await;
+                let mut tokens = tokens_lock.write();
                 tokens.retain(|t| t != token);
             }
         }
@@ -121,12 +121,17 @@ impl SessionRepository for MokaSessionRepository {
 
         // Try to get existing sessions for this user
         if let Some(tokens_lock) = self.user_sessions.get(username).await {
-            let tokens = tokens_lock.read().await;
+            // Clone tokens to release lock before awaiting
+            let token_list: Vec<SessionToken> = {
+                let tokens = tokens_lock.read();
+                tokens.clone()
+            };
+
             let mut most_recent: Option<Session> = None;
             let mut valid_tokens = Vec::new();
 
             // Find most recently accessed valid session
-            for token in tokens.iter() {
+            for token in token_list.iter() {
                 if let Some(session) = self.sessions.get(token).await {
                     if !session.is_expired() {
                         valid_tokens.push(token.clone());
@@ -140,9 +145,9 @@ impl SessionRepository for MokaSessionRepository {
             }
 
             // Cleanup expired tokens (lazy cleanup)
-            drop(tokens); // Release read lock
-            if valid_tokens.len() != tokens_lock.read().await.len() {
-                let mut tokens_write = tokens_lock.write().await;
+            let needs_cleanup = valid_tokens.len() != token_list.len();
+            if needs_cleanup {
+                let mut tokens_write = tokens_lock.write();
                 *tokens_write = valid_tokens;
             }
 
@@ -162,9 +167,13 @@ impl SessionRepository for MokaSessionRepository {
         let mut sessions = Vec::new();
 
         if let Some(tokens_lock) = self.user_sessions.get(username).await {
-            let tokens = tokens_lock.read().await;
+            // Clone tokens to release lock before awaiting
+            let token_list: Vec<SessionToken> = {
+                let tokens = tokens_lock.read();
+                tokens.clone()
+            };
 
-            for token in tokens.iter() {
+            for token in token_list.iter() {
                 if let Some(session) = self.sessions.get(token).await {
                     if !session.is_expired() {
                         sessions.push(session);
@@ -180,19 +189,55 @@ impl SessionRepository for MokaSessionRepository {
         let mut count = 0;
 
         if let Some(tokens_lock) = self.user_sessions.get(username).await {
-            let tokens = tokens_lock.read().await;
+            // Clone tokens to release lock before awaiting
+            let token_list: Vec<SessionToken> = {
+                let tokens = tokens_lock.read();
+                tokens.clone()
+            };
 
-            for token in tokens.iter() {
+            for token in token_list.iter() {
                 if self.sessions.remove(token).await.is_some() {
                     count += 1;
                 }
             }
 
-            drop(tokens); // Release read lock
             self.user_sessions.invalidate(username).await;
         }
 
         Ok(count)
+    }
+
+    async fn get_existing_user_session(&self, username: &str) -> Result<Option<Session>> {
+        if let Some(tokens_lock) = self.user_sessions.get(username).await {
+            // Clone tokens to release lock before awaiting
+            let token_list: Vec<SessionToken> = {
+                let tokens = tokens_lock.read();
+                tokens.clone()
+            };
+
+            // Find most recently accessed valid session
+            let mut most_recent: Option<Session> = None;
+
+            for token in token_list.iter() {
+                if let Some(session) = self.sessions.get(token).await {
+                    if !session.is_expired() {
+                        if most_recent.is_none() ||
+                           session.last_accessed > most_recent.as_ref().unwrap().last_accessed {
+                            most_recent = Some(session);
+                        }
+                    }
+                }
+            }
+
+            Ok(most_recent)
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn update_session(&self, session: &Session) -> Result<()> {
+        self.sessions.insert(session.token.clone(), session.clone()).await;
+        Ok(())
     }
 }
 

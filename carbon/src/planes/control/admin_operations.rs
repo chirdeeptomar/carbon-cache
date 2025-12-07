@@ -5,13 +5,13 @@ use crate::domain::{CacheConfig, CacheInfo};
 use crate::persistence::SledPersistence;
 use crate::ports::{AdminOperations, CacheStore, StorageFactory};
 use async_trait::async_trait;
+use parking_lot::RwLock;
 use shared::Result;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Entry containing both cache configuration and storage implementation
 pub struct CacheMetadata<K, V>
@@ -79,7 +79,7 @@ where
         };
 
         // Eagerly recreate all caches from configs (Option B)
-        let mut caches = manager.cache_registry.write().await;
+        let mut caches = manager.cache_registry.write();
         for config in configs {
             let store = factory.create_from_config(&config);
             let cache_name = config.name.clone();
@@ -93,7 +93,7 @@ where
 
     /// Get a cache store by name
     pub async fn get_cache_store(&self, name: &str) -> Option<Arc<dyn CacheStore<K, V>>> {
-        let caches = self.cache_registry.read().await;
+        let caches = self.cache_registry.read();
         caches.get(name).map(|entry| entry.store.clone())
     }
 }
@@ -120,7 +120,7 @@ where
         config: CacheConfig,
         store: Arc<dyn CacheStore<K, V>>,
     ) -> Result<CreateCacheResponse> {
-        let mut caches = self.cache_registry.write().await;
+        let mut caches = self.cache_registry.write();
 
         // Check if cache already exists
         if caches.contains_key(&config.name) {
@@ -147,7 +147,7 @@ where
     }
 
     async fn drop_cache(&self, name: &str) -> Result<DropCacheResponse> {
-        let mut caches = self.cache_registry.write().await;
+        let mut caches = self.cache_registry.write();
         let dropped = caches.remove(name).is_some();
 
         // Delete from Sled if persistence is enabled and cache was dropped
@@ -159,7 +159,7 @@ where
     }
 
     async fn list_caches(&self) -> Result<ListCachesResponse> {
-        let caches = self.cache_registry.read().await;
+        let caches = self.cache_registry.read();
         let cache_infos: Vec<CacheInfo> = caches
             .values()
             .map(|entry| CacheInfo::from_config(&entry.config))
@@ -168,7 +168,7 @@ where
     }
 
     async fn describe_cache(&self, name: &str) -> Result<DescribeCacheResponse> {
-        let caches = self.cache_registry.read().await;
+        let caches = self.cache_registry.read();
         if let Some(entry) = caches.get(name) {
             Ok(DescribeCacheResponse::new(CacheInfo::from_config(
                 &entry.config,

@@ -29,6 +29,14 @@ pub trait SessionRepository: Send + Sync {
 
     /// Delete all sessions for a user (for password change, logout all)
     async fn delete_user_sessions(&self, username: &str) -> Result<usize>;
+
+    /// Get existing valid session for username without password verification
+    /// Returns most recently accessed session if one exists, None otherwise
+    /// This is used for fast-path authentication when session already exists
+    async fn get_existing_user_session(&self, username: &str) -> Result<Option<Session>>;
+
+    /// Update session's last_accessed timestamp
+    async fn update_session(&self, session: &Session) -> Result<()>;
 }
 
 /// Session store service
@@ -76,5 +84,16 @@ impl<S: SessionRepository> SessionStore<S> {
     /// Invalidate all sessions for a user (logout all devices)
     pub async fn invalidate_user_sessions(&self, username: &str) -> Result<usize> {
         self.repository.delete_user_sessions(username).await
+    }
+
+    /// Get existing valid session for username (fast path - no password verification)
+    /// Returns most recently accessed session if one exists
+    pub async fn get_existing_user_session(&self, username: &str) -> Result<Option<Session>> {
+        self.repository.get_existing_user_session(username).await
+    }
+
+    /// Update session's last_accessed timestamp
+    pub async fn update_session(&self, session: &Session) -> Result<()> {
+        self.repository.update_session(session).await
     }
 }
