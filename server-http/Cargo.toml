@@ -3,6 +3,10 @@ name = "server-http"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "server_http"
+path = "src/lib.rs"
+
 [[bin]]
 name = "server-http"
 path = "src/main.rs"

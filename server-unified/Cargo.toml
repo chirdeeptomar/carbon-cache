@@ -1,0 +1,27 @@
+[package]
+name = "server-unified"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "server-unified"
+path = "src/main.rs"
+
+[dependencies]
+# Reuse existing server dependencies
+server-http = { path = "../server-http" }
+server-tcp = { path = "../server-tcp" }
+
+# Core dependencies
+carbon = { path = "../carbon" }
+shared = { path = "../shared" }
+bytes = "1.11.0"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures = "0.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+
+# HTTP dependencies
+axum = "0.8.7"

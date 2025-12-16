@@ -98,7 +98,7 @@ Content-Type: {{contentType}}
 Authorization: {{admin}}
 
 {
-    "value": "world"
+    "value": "hello world"
 }
 
 ### Get an entry from the cache

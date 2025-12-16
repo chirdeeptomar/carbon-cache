@@ -61,7 +61,35 @@ impl AppState {
         }
     }
 
-    async fn init_with_persistence() -> shared::Result<CacheManager<Vec<u8>, Bytes>> {
+    /// Create AppState with an existing CacheManager (for unified server)
+    pub async fn new_with_cache_manager(
+        cache_manager: CacheManager<Vec<u8>, Bytes>,
+        auth_service: Arc<AuthService>,
+        user_service: Arc<UserService>,
+        role_service: Arc<RoleService>,
+        session_store: Arc<SessionStore<MokaSessionRepository>>,
+    ) -> Self {
+        // Create broadcast channel for SSE events
+        let (event_tx, _event_rx) = broadcast::channel(1000);
+
+        // Create cache operations service with event broadcaster
+        let cache_operations = Arc::new(CacheOperationsService::with_event_broadcaster(
+            cache_manager.clone(),
+            event_tx.clone(),
+        ));
+
+        Self {
+            cache_manager,
+            cache_operations,
+            event_channel: event_tx,
+            auth_service,
+            user_service,
+            role_service,
+            session_store,
+        }
+    }
+
+    pub async fn init_with_persistence() -> shared::Result<CacheManager<Vec<u8>, Bytes>> {
         // Get home directory for persistence path
         let home_dir = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
