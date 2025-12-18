@@ -8,7 +8,7 @@ use crate::domain::response::{
     admin::{DescribeCacheResponse, DropCacheResponse, ListCachesResponse},
 };
 use async_trait::async_trait;
-use shared::{Result, TtlMs};
+use shared::Result;
 use std::sync::Arc;
 // Ports are the pluggable extension points for underlying cache implementations
 

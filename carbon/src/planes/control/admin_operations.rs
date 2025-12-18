@@ -5,9 +5,8 @@ use crate::domain::{CacheConfig, CacheInfo};
 use crate::persistence::SledPersistence;
 use crate::ports::{AdminOperations, CacheStore, StorageFactory};
 use async_trait::async_trait;
-use parking_lot::RwLock;
+use dashmap::DashMap;
 use shared::Result;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::path::Path;
@@ -31,7 +30,8 @@ where
     V: Debug + Send + Sync + 'static,
 {
     // Maps cache name -> cache metadata (config + storage implementation)
-    cache_registry: Arc<RwLock<HashMap<String, CacheMetadata<K, V>>>>,
+    // DashMap is lock-free internally, no need for RwLock wrapper
+    cache_registry: Arc<DashMap<String, CacheMetadata<K, V>>>,
     // Optional persistence layer for cache configurations
     persistence: Option<Arc<SledPersistence>>,
 }
@@ -43,7 +43,7 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CacheManager")
-            .field("caches", &"<RwLock<HashMap>>")
+            .field("caches", &"<DashMap>")
             .finish()
     }
 }
@@ -56,7 +56,7 @@ where
     /// Create a new CacheManager without persistence (in-memory only)
     pub fn new() -> Self {
         Self {
-            cache_registry: Arc::new(RwLock::new(HashMap::new())),
+            cache_registry: Arc::new(DashMap::new()),
             persistence: None,
         }
     }
@@ -74,27 +74,24 @@ where
 
         // Create manager
         let manager = Self {
-            cache_registry: Arc::new(RwLock::new(HashMap::new())),
+            cache_registry: Arc::new(DashMap::new()),
             persistence: Some(Arc::new(persistence)),
         };
 
         // Eagerly recreate all caches from configs (Option B)
-        let mut caches = manager.cache_registry.write();
         for config in configs {
             let store = factory.create_from_config(&config);
             let cache_name = config.name.clone();
             let entry = CacheMetadata { config, store };
-            caches.insert(cache_name, entry);
+            manager.cache_registry.insert(cache_name, entry);
         }
-        drop(caches); // Release the lock
 
         Ok(manager)
     }
 
     /// Get a cache store by name
     pub async fn get_cache_store(&self, name: &str) -> Option<Arc<dyn CacheStore<K, V>>> {
-        let caches = self.cache_registry.read();
-        caches.get(name).map(|entry| entry.store.clone())
+        self.cache_registry.get(name).map(|entry| entry.store.clone())
     }
 }
 
@@ -120,10 +117,8 @@ where
         config: CacheConfig,
         store: Arc<dyn CacheStore<K, V>>,
     ) -> Result<CreateCacheResponse> {
-        let mut caches = self.cache_registry.write();
-
         // Check if cache already exists
-        if caches.contains_key(&config.name) {
+        if self.cache_registry.contains_key(&config.name) {
             return Ok(CreateCacheResponse::new(
                 false,
                 format!("Cache '{}' already exists", config.name),
@@ -138,7 +133,7 @@ where
         }
 
         let entry = CacheMetadata { config, store };
-        caches.insert(cache_name.clone(), entry);
+        self.cache_registry.insert(cache_name.clone(), entry);
 
         Ok(CreateCacheResponse::new(
             true,
@@ -147,8 +142,7 @@ where
     }
 
     async fn drop_cache(&self, name: &str) -> Result<DropCacheResponse> {
-        let mut caches = self.cache_registry.write();
-        let dropped = caches.remove(name).is_some();
+        let dropped = self.cache_registry.remove(name).is_some();
 
         // Delete from Sled if persistence is enabled and cache was dropped
         if dropped && let Some(ref persistence) = self.persistence {
@@ -159,17 +153,15 @@ where
     }
 
     async fn list_caches(&self) -> Result<ListCachesResponse> {
-        let caches = self.cache_registry.read();
-        let cache_infos: Vec<CacheInfo> = caches
-            .values()
+        let cache_infos: Vec<CacheInfo> = self.cache_registry
+            .iter()
             .map(|entry| CacheInfo::from_config(&entry.config))
             .collect();
         Ok(ListCachesResponse::new(cache_infos))
     }
 
     async fn describe_cache(&self, name: &str) -> Result<DescribeCacheResponse> {
-        let caches = self.cache_registry.read();
-        if let Some(entry) = caches.get(name) {
+        if let Some(entry) = self.cache_registry.get(name) {
             Ok(DescribeCacheResponse::new(CacheInfo::from_config(
                 &entry.config,
             )))

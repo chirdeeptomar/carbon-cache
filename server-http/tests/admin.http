@@ -108,3 +108,16 @@ Authorization: {{admin}}
 ### Delete an entry from the cache
 DELETE {{host}}/cache/test-timed/1
 Authorization: {{admin}}
+
+### Create a new cache with time to live based eviction
+POST {{host}}/admin/caches
+Content-Type: {{contentType}}
+Authorization: {{admin}}
+
+{
+    "name": "perf-test",
+    "description": "Time-based cache with 1 minute TTL",
+    "tags": {"env": "production", "type": "ttl"},
+    "eviction": "ttl",
+    "default_ttl_ms": 60000
+}

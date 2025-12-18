@@ -1,6 +1,6 @@
 use carbon::auth::{
-    defaults::create_default_admin, AuthService, MokaSessionRepository, RoleService,
-    SledRoleRepository, SledUserRepository, SessionStore, UserService, UserRepository,
+    defaults::create_default_admin, AuthService, MokaSessionRepository, RoleService, SessionStore,
+    SledRoleRepository, SledUserRepository, UserRepository, UserService,
 };
 use carbon::planes::data::cache_operations::CacheOperationsService;
 use std::sync::Arc;
@@ -32,7 +32,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cm
         }
         Err(e) => {
-            warn!("Failed to initialize persistence: {}. Running in-memory mode.", e);
+            warn!(
+                "Failed to initialize persistence: {}. Running in-memory mode.",
+                e
+            );
             carbon::planes::control::CacheManager::new()
         }
     };
@@ -48,8 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize session store (1 hour TTL)
     info!("Initializing session store...");
     let session_repository = Arc::new(MokaSessionRepository::new(
-        None,                               // No max sessions limit
-        Some(Duration::from_secs(3600)),    // 1 hour TTL
+        None,                            // No max sessions limit
+        Some(Duration::from_secs(3600)), // 1 hour TTL
     ));
     let session_store = Arc::new(SessionStore::new(session_repository));
 
@@ -64,7 +67,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user_service,
         role_service,
         session_store,
-    ).await;
+    )
+    .await;
 
     let http_router = server_http::build_router(app_state);
 
@@ -74,7 +78,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let http_handle = tokio::spawn(async move {
         info!("Starting HTTP server on 0.0.0.0:8080");
 
-        let listener = TcpListener::bind("0.0.0.0:8080").await
+        let listener = TcpListener::bind("0.0.0.0:8080")
+            .await
             .expect("Failed to bind HTTP server");
 
         info!("HTTP Server listening on http://0.0.0.0:8080");
@@ -95,7 +100,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tcp_handle = tokio::spawn(async move {
         info!("Starting TCP server on 127.0.0.1:5500");
 
-        let listener = TcpListener::bind("127.0.0.1:5500").await
+        let listener = TcpListener::bind("127.0.0.1:5500")
+            .await
             .expect("Failed to bind TCP server");
 
         info!("TCP Server listening on tcp://127.0.0.1:5500");
@@ -107,10 +113,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let cache_ops_clone = tcp_cache_ops.clone();
 
                     tokio::spawn(async move {
-                        if let Err(err) = server_tcp::process_connection(
-                            socket,
-                            cache_ops_clone
-                        ).await {
+                        if let Err(err) =
+                            server_tcp::process_connection(socket, cache_ops_clone).await
+                        {
                             tracing::warn!("TCP connection {addr} error: {err:?}");
                         }
                     });
