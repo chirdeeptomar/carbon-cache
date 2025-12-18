@@ -1,12 +1,12 @@
 use super::models::User;
-use super::session::{generate_session_token, Session, SessionToken};
+use super::session::{Session, SessionToken, generate_session_token};
 use super::session_store::SessionRepository;
 use async_trait::async_trait;
 use moka::future::Cache;
-use parking_lot::RwLock;
 use shared::Result;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 
 /// Username type alias
 pub type Username = String;
@@ -50,7 +50,12 @@ impl MokaSessionRepository {
 
 #[async_trait]
 impl SessionRepository for MokaSessionRepository {
-    async fn create_session(&self, user: User, ttl_ms: u64, client_ip: Option<String>) -> Result<Session> {
+    async fn create_session(
+        &self,
+        user: User,
+        ttl_ms: u64,
+        client_ip: Option<String>,
+    ) -> Result<Session> {
         let token = generate_session_token();
         let session = Session::new(token.clone(), user.clone(), ttl_ms, client_ip);
 
@@ -59,13 +64,14 @@ impl SessionRepository for MokaSessionRepository {
 
         // Add token to user's session list in secondary index
         let username = user.username.clone();
-        let tokens_lock = self.user_sessions
+        let tokens_lock = self
+            .user_sessions
             .get(&username)
             .await
             .unwrap_or_else(|| Arc::new(RwLock::new(Vec::new())));
 
         {
-            let mut tokens = tokens_lock.write();
+            let mut tokens = tokens_lock.write().await;
             tokens.push(token.clone());
         }
 
@@ -75,7 +81,8 @@ impl SessionRepository for MokaSessionRepository {
     }
 
     async fn get_session(&self, token: &SessionToken) -> Result<User> {
-        let session = self.sessions
+        let session = self
+            .sessions
             .get(token)
             .await
             .ok_or(shared::Error::NotFound)?;
@@ -100,7 +107,7 @@ impl SessionRepository for MokaSessionRepository {
         if let Some(data) = &session {
             // Remove from username index
             if let Some(tokens_lock) = self.user_sessions.get(&data.user.username).await {
-                let mut tokens = tokens_lock.write();
+                let mut tokens = tokens_lock.write().await;
                 tokens.retain(|t| t != token);
             }
         }
@@ -116,14 +123,19 @@ impl SessionRepository for MokaSessionRepository {
         }
     }
 
-    async fn get_or_create_user_session(&self, user: User, ttl_ms: u64, client_ip: Option<String>) -> Result<Session> {
+    async fn get_or_create_user_session(
+        &self,
+        user: User,
+        ttl_ms: u64,
+        client_ip: Option<String>,
+    ) -> Result<Session> {
         let username = &user.username;
 
         // Try to get existing sessions for this user
         if let Some(tokens_lock) = self.user_sessions.get(username).await {
             // Clone tokens to release lock before awaiting
             let token_list: Vec<SessionToken> = {
-                let tokens = tokens_lock.read();
+                let tokens = tokens_lock.read().await;
                 tokens.clone()
             };
 
@@ -136,8 +148,9 @@ impl SessionRepository for MokaSessionRepository {
                     if !session.is_expired() {
                         valid_tokens.push(token.clone());
 
-                        if most_recent.is_none() ||
-                           session.last_accessed > most_recent.as_ref().unwrap().last_accessed {
+                        if most_recent.is_none()
+                            || session.last_accessed > most_recent.as_ref().unwrap().last_accessed
+                        {
                             most_recent = Some(session);
                         }
                     }
@@ -147,14 +160,16 @@ impl SessionRepository for MokaSessionRepository {
             // Cleanup expired tokens (lazy cleanup)
             let needs_cleanup = valid_tokens.len() != token_list.len();
             if needs_cleanup {
-                let mut tokens_write = tokens_lock.write();
+                let mut tokens_write = tokens_lock.write().await;
                 *tokens_write = valid_tokens;
             }
 
             // Return most recent session if found
             if let Some(mut session) = most_recent {
                 session.update_last_accessed();
-                self.sessions.insert(session.token.clone(), session.clone()).await;
+                self.sessions
+                    .insert(session.token.clone(), session.clone())
+                    .await;
                 return Ok(session);
             }
         }
@@ -169,7 +184,7 @@ impl SessionRepository for MokaSessionRepository {
         if let Some(tokens_lock) = self.user_sessions.get(username).await {
             // Clone tokens to release lock before awaiting
             let token_list: Vec<SessionToken> = {
-                let tokens = tokens_lock.read();
+                let tokens = tokens_lock.read().await;
                 tokens.clone()
             };
 
@@ -191,7 +206,7 @@ impl SessionRepository for MokaSessionRepository {
         if let Some(tokens_lock) = self.user_sessions.get(username).await {
             // Clone tokens to release lock before awaiting
             let token_list: Vec<SessionToken> = {
-                let tokens = tokens_lock.read();
+                let tokens = tokens_lock.read().await;
                 tokens.clone()
             };
 
@@ -211,7 +226,7 @@ impl SessionRepository for MokaSessionRepository {
         if let Some(tokens_lock) = self.user_sessions.get(username).await {
             // Clone tokens to release lock before awaiting
             let token_list: Vec<SessionToken> = {
-                let tokens = tokens_lock.read();
+                let tokens = tokens_lock.read().await;
                 tokens.clone()
             };
 
@@ -221,8 +236,9 @@ impl SessionRepository for MokaSessionRepository {
             for token in token_list.iter() {
                 if let Some(session) = self.sessions.get(token).await {
                     if !session.is_expired() {
-                        if most_recent.is_none() ||
-                           session.last_accessed > most_recent.as_ref().unwrap().last_accessed {
+                        if most_recent.is_none()
+                            || session.last_accessed > most_recent.as_ref().unwrap().last_accessed
+                        {
                             most_recent = Some(session);
                         }
                     }
@@ -236,7 +252,9 @@ impl SessionRepository for MokaSessionRepository {
     }
 
     async fn update_session(&self, session: &Session) -> Result<()> {
-        self.sessions.insert(session.token.clone(), session.clone()).await;
+        self.sessions
+            .insert(session.token.clone(), session.clone())
+            .await;
         Ok(())
     }
 }
@@ -244,7 +262,6 @@ impl SessionRepository for MokaSessionRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     #[tokio::test]
     async fn test_create_and_validate_session() {
@@ -252,7 +269,10 @@ mod tests {
         let user = User::new("testuser".to_string(), "hash".to_string(), vec![]);
 
         // Create session
-        let session = repo.create_session(user.clone(), 3600000, Some("192.168.1.1".to_string())).await.unwrap();
+        let session = repo
+            .create_session(user.clone(), 3600000, Some("192.168.1.1".to_string()))
+            .await
+            .unwrap();
         assert!(!session.token.is_empty());
 
         // Validate session
@@ -295,10 +315,16 @@ mod tests {
         let user = User::new("testuser".to_string(), "hash".to_string(), vec![]);
 
         // Create first session
-        let session1 = repo.get_or_create_user_session(user.clone(), 3600000, Some("192.168.1.1".to_string())).await.unwrap();
+        let session1 = repo
+            .get_or_create_user_session(user.clone(), 3600000, Some("192.168.1.1".to_string()))
+            .await
+            .unwrap();
 
         // Request session again - should return same token
-        let session2 = repo.get_or_create_user_session(user.clone(), 3600000, Some("192.168.1.2".to_string())).await.unwrap();
+        let session2 = repo
+            .get_or_create_user_session(user.clone(), 3600000, Some("192.168.1.2".to_string()))
+            .await
+            .unwrap();
 
         assert_eq!(session1.token, session2.token);
         assert_eq!(session1.created_at, session2.created_at);
@@ -310,9 +336,18 @@ mod tests {
         let user = User::new("testuser".to_string(), "hash".to_string(), vec![]);
 
         // Create 3 sessions explicitly
-        let session1 = repo.create_session(user.clone(), 3600000, Some("192.168.1.1".to_string())).await.unwrap();
-        let session2 = repo.create_session(user.clone(), 3600000, Some("192.168.1.2".to_string())).await.unwrap();
-        let session3 = repo.create_session(user.clone(), 3600000, Some("192.168.1.3".to_string())).await.unwrap();
+        let session1 = repo
+            .create_session(user.clone(), 3600000, Some("192.168.1.1".to_string()))
+            .await
+            .unwrap();
+        let session2 = repo
+            .create_session(user.clone(), 3600000, Some("192.168.1.2".to_string()))
+            .await
+            .unwrap();
+        let session3 = repo
+            .create_session(user.clone(), 3600000, Some("192.168.1.3".to_string()))
+            .await
+            .unwrap();
 
         // All should be different
         assert_ne!(session1.token, session2.token);
@@ -329,14 +364,23 @@ mod tests {
         let user = User::new("testuser".to_string(), "hash".to_string(), vec![]);
 
         // Create 2 sessions
-        let session1 = repo.create_session(user.clone(), 3600000, None).await.unwrap();
-        let _session2 = repo.create_session(user.clone(), 3600000, None).await.unwrap();
+        let session1 = repo
+            .create_session(user.clone(), 3600000, None)
+            .await
+            .unwrap();
+        let _session2 = repo
+            .create_session(user.clone(), 3600000, None)
+            .await
+            .unwrap();
 
         // Access session1 (updates last_accessed)
         repo.get_session(&session1.token).await.unwrap();
 
         // get_or_create should return session1 (most recently accessed)
-        let selected = repo.get_or_create_user_session(user.clone(), 3600000, None).await.unwrap();
+        let selected = repo
+            .get_or_create_user_session(user.clone(), 3600000, None)
+            .await
+            .unwrap();
         assert_eq!(selected.token, session1.token);
     }
 
@@ -349,7 +393,10 @@ mod tests {
         let session = repo.create_session(user.clone(), 0, None).await.unwrap();
 
         // get_or_create should create NEW session (old one expired)
-        let new_session = repo.get_or_create_user_session(user.clone(), 3600000, None).await.unwrap();
+        let new_session = repo
+            .get_or_create_user_session(user.clone(), 3600000, None)
+            .await
+            .unwrap();
         assert_ne!(session.token, new_session.token);
 
         // User should only have 1 valid session (expired one filtered out)
@@ -363,9 +410,15 @@ mod tests {
         let user = User::new("testuser".to_string(), "hash".to_string(), vec![]);
 
         // Create 3 sessions
-        repo.create_session(user.clone(), 3600000, None).await.unwrap();
-        repo.create_session(user.clone(), 3600000, None).await.unwrap();
-        repo.create_session(user.clone(), 3600000, None).await.unwrap();
+        repo.create_session(user.clone(), 3600000, None)
+            .await
+            .unwrap();
+        repo.create_session(user.clone(), 3600000, None)
+            .await
+            .unwrap();
+        repo.create_session(user.clone(), 3600000, None)
+            .await
+            .unwrap();
 
         // Delete all sessions
         let deleted = repo.delete_user_sessions("testuser").await.unwrap();
@@ -384,8 +437,14 @@ mod tests {
         let user2 = User::new("user2".to_string(), "hash2".to_string(), vec![]);
 
         // Create sessions for both users
-        let session1 = repo.get_or_create_user_session(user1.clone(), 3600000, None).await.unwrap();
-        let session2 = repo.get_or_create_user_session(user2.clone(), 3600000, None).await.unwrap();
+        let session1 = repo
+            .get_or_create_user_session(user1.clone(), 3600000, None)
+            .await
+            .unwrap();
+        let session2 = repo
+            .get_or_create_user_session(user2.clone(), 3600000, None)
+            .await
+            .unwrap();
 
         // Sessions should be different
         assert_ne!(session1.token, session2.token);
