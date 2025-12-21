@@ -3,6 +3,7 @@ use carbon::auth::{
     SledRoleRepository, SledUserRepository, UserRepository, UserService,
 };
 use carbon::planes::data::cache_operations::CacheOperationsService;
+use shared::config::Config;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -20,6 +21,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(_) => info!("Loaded environment variables from .env file"),
         Err(_) => info!("No .env file found, using system environment variables"),
     }
+
+    let config = Arc::new(Config::from_env());
 
     // ============================================
     // STEP 1: Initialize shared CacheManager
@@ -46,7 +49,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // STEP 2: Initialize Auth System
     // ============================================
     info!("Initializing authentication system...");
-    let (auth_service, user_service, role_service) = init_auth_system().await;
+    let (auth_service, user_service, role_service) = init_auth_system(
+        config.data_dir.clone(),
+        config.admin_username.clone(),
+        config.admin_password.clone(),
+    )
+    .await;
 
     // Initialize session store (1 hour TTL)
     info!("Initializing session store...");
@@ -75,36 +83,75 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ============================================
     // STEP 4: Spawn HTTP Server Task
     // ============================================
+    let config_http_server = Arc::clone(&config);
+
     let http_handle = tokio::spawn(async move {
-        info!("Starting HTTP server on 0.0.0.0:8080");
+        info!(
+            "Starting HTTP server on {}://{}:{}",
+            config_http_server.http.http_protcol(),
+            config_http_server.host,
+            config_http_server.http.port()
+        );
 
-        let listener = TcpListener::bind("0.0.0.0:8080")
-            .await
-            .expect("Failed to bind HTTP server");
+        let listener = TcpListener::bind(format!(
+            "{}:{}",
+            config_http_server.host,
+            config_http_server.http.port()
+        ))
+        .await
+        .expect("Failed to bind HTTP server");
 
-        info!("HTTP Server listening on http://0.0.0.0:8080");
+        info!(
+            "HTTP Server listening on {}://{}:{}",
+            config_http_server.http.http_protcol(),
+            config_http_server.host,
+            config_http_server.http.port()
+        );
+
+        info!(
+            "Try: curl -u admin:admin123 {}://{}:{}/health",
+            config_http_server.http.http_protcol(),
+            config_http_server.host,
+            config_http_server.http.port()
+        );
 
         axum::serve(listener, http_router)
             .with_graceful_shutdown(shutdown_signal())
             .await
             .expect("HTTP server error");
-
-        info!("HTTP server shut down gracefully");
     });
 
     // ============================================
     // STEP 5: Spawn TCP Server Task
     // ============================================
+    info!("Initializing TCP server components");
+
+    let config_tcp_server = Arc::clone(&config);
+
     let tcp_cache_ops = cache_ops.clone();
 
     let tcp_handle = tokio::spawn(async move {
-        info!("Starting TCP server on 127.0.0.1:5500");
+        info!(
+            "Starting TCP server on {}://{}:{}",
+            config_tcp_server.tcp.tcp_protcol(),
+            config_tcp_server.host,
+            config_tcp_server.tcp.port()
+        );
 
-        let listener = TcpListener::bind("127.0.0.1:5500")
-            .await
-            .expect("Failed to bind TCP server");
+        let listener = TcpListener::bind(format!(
+            "{}:{}",
+            config_tcp_server.host,
+            config_tcp_server.tcp.port()
+        ))
+        .await
+        .expect("Failed to bind TCP server");
 
-        info!("TCP Server listening on tcp://127.0.0.1:5500");
+        info!(
+            "TCP Server listening on {}://{}:{}",
+            config_tcp_server.tcp.tcp_protcol(),
+            config_tcp_server.host,
+            config_tcp_server.tcp.port()
+        );
 
         loop {
             match listener.accept().await {
@@ -131,9 +178,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // STEP 6: Wait for shutdown signal
     // ============================================
     info!("Unified server started successfully");
-    info!("  - HTTP: http://0.0.0.0:8080");
-    info!("  - TCP:  tcp://127.0.0.1:5500");
-    info!("Try: curl -u admin:admin123 http://localhost:8080/health");
+    info!(
+        "  - HTTP: {}://{}:{}",
+        config.http.http_protcol(),
+        config.host,
+        config.http.port()
+    );
+    info!(
+        "  - TCP:  {}://{}:{}",
+        config.tcp.tcp_protcol(),
+        config.host,
+        config.tcp.port()
+    );
 
     tokio::select! {
         _ = http_handle => info!("HTTP server task completed"),
@@ -178,14 +234,13 @@ async fn shutdown_signal() {
     info!("Shutting down gracefully...");
 }
 
-async fn init_auth_system() -> (Arc<AuthService>, Arc<UserService>, Arc<RoleService>) {
-    // Get home directory for auth storage
-    let home_dir = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".to_string());
-
-    let auth_base_path = std::path::Path::new(&home_dir).join(".carbon");
-
+// Initialize authentication system
+async fn init_auth_system(
+    data_dir: String,
+    admin_username: String,
+    admin_password: String,
+) -> (Arc<AuthService>, Arc<UserService>, Arc<RoleService>) {
+    let auth_base_path = std::path::Path::new(&data_dir).join(".carbon");
     // Create .carbon directory if it doesn't exist
     if let Err(e) = std::fs::create_dir_all(&auth_base_path) {
         warn!("Failed to create .carbon directory: {}", e);
@@ -222,25 +277,17 @@ async fn init_auth_system() -> (Arc<AuthService>, Arc<UserService>, Arc<RoleServ
         .expect("Admin role not found");
 
     // Check if default admin exists
-    let admin_username =
-        std::env::var("CARBON_ADMIN_USERNAME").unwrap_or_else(|_| "admin".to_string());
+
     let admin_exists = user_repo
         .username_exists(&admin_username)
         .await
         .unwrap_or(false);
 
     if !admin_exists {
-        // Create default admin user
-        let admin_password = std::env::var("CARBON_ADMIN_PASSWORD").unwrap_or_else(|_| {
-            warn!("CARBON_ADMIN_PASSWORD not set, using default password 'admin123'");
-            warn!("⚠️  WARNING: Please change the default admin password immediately!");
-            "admin123".to_string()
-        });
-
-        info!("Creating default admin user: {}", admin_username);
+        info!("Creating default admin user: {}", &admin_username);
         let admin_user = create_default_admin(
             admin_username.clone(),
-            admin_password,
+            admin_password.clone(),
             admin_role.id.clone(),
         )
         .expect("Failed to create default admin user");

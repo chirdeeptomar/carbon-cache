@@ -16,3 +16,5 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct TtlMs(pub u64);
+
+pub mod config;
