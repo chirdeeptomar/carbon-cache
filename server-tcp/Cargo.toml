@@ -12,15 +12,15 @@ name = "server-tcp"
 path = "src/main.rs"
 
 [dependencies]
-dotenvy = "0.15"
-tokio = { version = "1", features = ["full"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-carbon = { path = "../carbon" }
-shared = { path = "../shared" }
-storage-engine = { path = "../storage-engine" }
-dhat = "0.3.3"
-bytes = "1.11.0"
-serde = { version = "1", features = ["derive"] }
-tokio-util = { version = "0.7", features = ["codec"] }
-futures = "0.3"
+dotenvy.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+carbon.workspace = true
+shared.workspace = true
+storage-engine.workspace = true
+dhat.workspace = true
+bytes.workspace = true
+serde.workspace = true
+tokio-util.workspace = true
+futures.workspace = true

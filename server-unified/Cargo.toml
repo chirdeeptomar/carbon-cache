@@ -9,19 +9,19 @@ path = "src/main.rs"
 
 [dependencies]
 # Reuse existing server dependencies
-server-http = { path = "../server-http" }
-server-tcp = { path = "../server-tcp" }
+server-http.workspace = true
+server-tcp.workspace = true
 
 # Core dependencies
-carbon = { path = "../carbon" }
-shared = { path = "../shared" }
-bytes = "1.11.0"
-tokio = { version = "1", features = ["full"] }
-tokio-util = { version = "0.7", features = ["codec"] }
-futures = "0.3"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-dotenvy = "0.15"
+carbon.workspace = true
+shared.workspace = true
+bytes.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-util.workspace = true
+futures.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+dotenvy.workspace = true
 
 # HTTP dependencies
-axum = "0.8.7"
+axum.workspace = true

@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-async-trait = "0.1.68"
-foyer = "0.20.1"
-moka = { version = "0.12", features = ["future"] }
-tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }
+async-trait.workspace = true
+foyer.workspace = true
+moka.workspace = true
+tokio.workspace = true
 
-carbon = { path = "../carbon" }
-shared = { path = "../shared" }
+carbon.workspace = true
+shared.workspace = true
