@@ -313,6 +313,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "carbon-server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "carbon",
+ "dotenvy",
+ "futures",
+ "server-http",
+ "server-tcp",
+ "shared",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1684,9 +1702,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.145"
+version = "1.0.146"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
+checksum = "217ca874ae0207aac254aa02c957ded05585a90892cc8d87f9e5fa49669dadd8"
 dependencies = [
  "itoa",
  "memchr",
@@ -1762,24 +1780,6 @@ dependencies = [
  "serde",
  "shared",
  "storage-engine",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "server-unified"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bytes",
- "carbon",
- "dotenvy",
- "futures",
- "server-http",
- "server-tcp",
- "shared",
  "tokio",
  "tokio-util",
  "tracing",

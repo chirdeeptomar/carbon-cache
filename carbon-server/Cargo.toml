@@ -1,10 +1,10 @@
 [package]
-name = "server-unified"
+name = "carbon-server"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "server-unified"
+name = "carbon-server"
 path = "src/main.rs"
 
 [dependencies]

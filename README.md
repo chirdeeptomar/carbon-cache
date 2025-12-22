@@ -6,3 +6,10 @@ Carbon Cache runs as a HTTP Server allowing you to directly connect to the serve
 
 Carbon supports Basic Auth for Admin tasks.
 
+To Run:
+
+```bash
+cargo run --bin carbon-server --release
+```
+
+To stop the carbon server, press ctrl+c

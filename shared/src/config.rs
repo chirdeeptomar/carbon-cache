@@ -20,28 +20,28 @@ impl Config {
     const DEFAULT_DATA_DIR: &str = "./data";
 
     pub fn from_env() -> Self {
-        let host = std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string());
-        let tcp_port = std::env::var("TCP_PORT")
+        let host = std::env::var("CARBON_HOST").unwrap_or_else(|_| "localhost".to_string());
+        let tcp_port = std::env::var("CARBON_TCP_PORT")
             .unwrap_or_else(|_| "5500".to_string())
             .parse::<u16>()
             .unwrap_or(5500);
-        let http_port = std::env::var("HTTP_PORT")
+        let http_port = std::env::var("CARBON_HTTP_PORT")
             .unwrap_or_else(|_| "8080".to_string())
             .parse::<u16>()
             .unwrap_or(8080);
-        let https_port = std::env::var("HTTPS_PORT")
+        let https_port = std::env::var("CARBON_HTTPS_PORT")
             .unwrap_or_else(|_| "8443".to_string())
             .parse::<u16>()
             .unwrap_or(8443);
-        let tls_cert_path = std::env::var("TLS_CERT_PATH").ok();
-        let tls_key_path = std::env::var("TLS_KEY_PATH").ok();
+        let tls_cert_path = std::env::var("CARBON_TLS_CERT_PATH").ok();
+        let tls_key_path = std::env::var("CARBON_TLS_KEY_PATH").ok();
         Self {
             host,
-            data_dir: std::env::var("DATA_DIR")
+            data_dir: std::env::var("CARBON_DATA_DIR")
                 .unwrap_or_else(|_| Self::DEFAULT_DATA_DIR.to_string()),
-            admin_username: std::env::var("ADMIN_USERNAME")
+            admin_username: std::env::var("CARBON_ADMIN_USERNAME")
                 .unwrap_or_else(|_| Self::DEFAULT_ADMIN_USERNAME.to_string()),
-            admin_password: std::env::var("ADMIN_PASSWORD")
+            admin_password: std::env::var("CARBON_ADMIN_PASSWORD")
                 .unwrap_or_else(|_| Self::DEFAULT_ADMIN_PASSWORD.to_string()),
             http: match (&tls_cert_path, &tls_key_path) {
                 (Some(cert), Some(key)) => Protocol::Https(https_port, cert.clone(), key.clone()),
