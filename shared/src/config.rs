@@ -1,4 +1,3 @@
-#[derive(Debug, Clone)]
 pub enum Protocol {
     Http(u16),                  // port
     Https(u16, String, String), // port, cert_path, key_path,
@@ -6,7 +5,6 @@ pub enum Protocol {
     Tcps(u16, String, String),  // port, cert_path, key_path,
 }
 
-#[derive(Debug, Clone)]
 pub struct Config {
     pub host: String,
     pub http: Protocol,

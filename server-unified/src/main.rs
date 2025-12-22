@@ -50,9 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ============================================
     info!("Initializing authentication system...");
     let (auth_service, user_service, role_service) = init_auth_system(
-        config.data_dir.clone(),
-        config.admin_username.clone(),
-        config.admin_password.clone(),
+        &config.data_dir,
+        &config.admin_username,
+        &config.admin_password,
     )
     .await;
 
@@ -236,9 +236,9 @@ async fn shutdown_signal() {
 
 // Initialize authentication system
 async fn init_auth_system(
-    data_dir: String,
-    admin_username: String,
-    admin_password: String,
+    data_dir: &str,
+    admin_username: &str,
+    admin_password: &str,
 ) -> (Arc<AuthService>, Arc<UserService>, Arc<RoleService>) {
     let auth_base_path = std::path::Path::new(&data_dir).join(".carbon");
     // Create .carbon directory if it doesn't exist
@@ -279,15 +279,15 @@ async fn init_auth_system(
     // Check if default admin exists
 
     let admin_exists = user_repo
-        .username_exists(&admin_username)
+        .username_exists(admin_username)
         .await
         .unwrap_or(false);
 
     if !admin_exists {
-        info!("Creating default admin user: {}", &admin_username);
+        info!("Creating default admin user: {}", admin_username);
         let admin_user = create_default_admin(
-            admin_username.clone(),
-            admin_password.clone(),
+            admin_username.to_string(),
+            admin_password.to_string(),
             admin_role.id.clone(),
         )
         .expect("Failed to create default admin user");
