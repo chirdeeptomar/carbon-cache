@@ -7,6 +7,7 @@ use axum::{
     Router,
 };
 use tower_http::normalize_path::NormalizePathLayer;
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
 /// Build and configure the application router
@@ -23,6 +24,8 @@ pub fn build_router(state: AppState) -> Router {
     };
 
     let auth_routes = Router::new()
+        // Add route for admin UI
+        .nest_service("/admin/ui", ServeDir::new("../carbon-admin-ui/dist"))
         .route("/auth/login", post(handlers::login))
         .route("/auth/logout", post(handlers::logout))
         .with_state(auth_state);

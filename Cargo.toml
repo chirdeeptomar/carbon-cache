@@ -7,6 +7,7 @@ members = [
     "shared",
     "carbon",
     "carbon-server",
+    "carbon-admin-ui",
 ]
 
 [workspace.dependencies]
@@ -64,6 +65,7 @@ tempfile = "3.23.0"
 # Workspace members
 carbon = { path = "carbon" }
 carbon-server = { path = "carbon-server" }
+carbon-admin-ui = { path = "carbon-admin-ui" }
 shared = { path = "shared" }
 storage-engine = { path = "storage-engine" }
 server-http = { path = "server-http" }
