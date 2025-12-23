@@ -67,10 +67,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/admin/roles/{name}", put(handlers::update_role))
         .route("/admin/roles/{name}", delete(handlers::delete_role))
         // Apply authentication middleware to all protected routes
-        .layer(middleware::from_fn_with_state(
-            auth_state,
-            auth_middleware,
-        ));
+        .layer(middleware::from_fn_with_state(auth_state, auth_middleware));
 
     // Combine routes
     Router::new()

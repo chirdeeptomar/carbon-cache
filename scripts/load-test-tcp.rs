@@ -284,8 +284,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(Err(_)) | Err(_) => {
             eprintln!("✗ Cannot connect to TCP server at {}", SERVER_ADDR);
             eprintln!();
-            eprintln!("Start the unified server with:");
-            eprintln!("  cargo run --release --bin server-unified");
+            eprintln!("Start the carbon server with:");
+            eprintln!("  cargo run --release --bin carbon-server");
             eprintln!();
             eprintln!("Or TCP server only:");
             eprintln!("  cargo run --release --bin server-tcp");

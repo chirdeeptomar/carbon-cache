@@ -1,9 +1,12 @@
+use crate::domain::response::admin::CreateCacheResponse;
+
 use crate::domain::response::admin::{
-    CreateCacheResponse, DescribeCacheResponse, DropCacheResponse, ListCachesResponse,
+    DescribeCacheResponse, DropCacheResponse, ListCachesResponse,
 };
 use crate::domain::{CacheConfig, CacheInfo};
 use crate::persistence::SledPersistence;
-use crate::ports::{AdminOperations, CacheStore, StorageFactory};
+use crate::planes::control::operation::AdminOperations;
+use crate::ports::{CacheStore, StorageFactory};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use shared::Result;
@@ -91,7 +94,9 @@ where
 
     /// Get a cache store by name
     pub async fn get_cache_store(&self, name: &str) -> Option<Arc<dyn CacheStore<K, V>>> {
-        self.cache_registry.get(name).map(|entry| entry.store.clone())
+        self.cache_registry
+            .get(name)
+            .map(|entry| entry.store.clone())
     }
 }
 
@@ -153,7 +158,8 @@ where
     }
 
     async fn list_caches(&self) -> Result<ListCachesResponse> {
-        let cache_infos: Vec<CacheInfo> = self.cache_registry
+        let cache_infos: Vec<CacheInfo> = self
+            .cache_registry
             .iter()
             .map(|entry| CacheInfo::from_config(&entry.config))
             .collect();

@@ -4,9 +4,9 @@ use carbon::domain::{CacheConfig, CacheEvictionStrategy, EvictionAlgorithm};
 // Constants for validation ranges
 const MIN_MEM_BYTES: u64 = 1_048_576; // 1 MB
 const MAX_MEM_BYTES: u64 = 1_099_511_627_776; // 1 TB
-const MAX_SHARDS: u32 = 256;
+const MAX_SHARDS: u8 = 128; // Max 128 shards
 const DEFAULT_TTL_MS: u64 = 1_800_000; // 30 minutes
-const DEFAULT_SHARDS: u32 = 16; // Default to 16 shards
+const DEFAULT_SHARDS: u8 = 16; // Default to 16 shards
 
 #[derive(Debug)]
 pub enum ValidationError {
@@ -205,7 +205,7 @@ impl CacheConfigFactory {
 
         // Validate shards range if provided
         if let Some(shards) = req.shards {
-            if shards as u32 > MAX_SHARDS {
+            if shards > MAX_SHARDS {
                 return Err(ValidationError::OutOfRange {
                     field: "shards",
                     value: shards as u64,
@@ -236,7 +236,7 @@ impl CacheConfigFactory {
         };
 
         // Default shards to 16 if not provided
-        let shards = req.shards.or(Some(DEFAULT_SHARDS as u8));
+        let shards = req.shards.or(Some(DEFAULT_SHARDS));
 
         CacheConfig::with_backend(
             req.name,

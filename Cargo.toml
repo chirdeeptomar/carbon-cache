@@ -62,12 +62,12 @@ dhat = "0.3.3"
 tempfile = "3.23.0"
 
 # Workspace members
-shared = { path = "shared" }
 carbon = { path = "carbon" }
+carbon-server = { path = "carbon-server" }
+shared = { path = "shared" }
 storage-engine = { path = "storage-engine" }
 server-http = { path = "server-http" }
 server-tcp = { path = "server-tcp" }
-server-unified = { path = "server-unified" }
 
 [profile.release]
 debug = true # Keep debug symbols for profiling

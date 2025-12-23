@@ -177,7 +177,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ============================================
     // STEP 6: Wait for shutdown signal
     // ============================================
-    info!("Unified server started successfully");
+    info!("Carbon server started successfully");
     info!(
         "  - HTTP: {}://{}:{}",
         config.http.http_protcol(),
@@ -197,7 +197,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ = shutdown_signal() => info!("Shutdown signal received"),
     }
 
-    info!("Unified server shutting down");
+    info!("Carbon server shutting down");
     Ok(())
 }
 
