@@ -5,6 +5,9 @@
 # HTML title tag content
 title = "carbon-admin-ui"
 
+# Base path for the application (where it will be served from)
+base_path = "/admin/ui"
+
 # include `assets` in web platform
 [web.resource]
 

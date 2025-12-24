@@ -25,7 +25,10 @@ pub fn build_router(state: AppState) -> Router {
 
     let auth_routes = Router::new()
         // Add route for admin UI
-        .nest_service("/admin/ui", ServeDir::new("../carbon-admin-ui/dist"))
+        .nest_service(
+            "/admin/ui",
+            ServeDir::new("target/dx/carbon-admin-ui/release/web/public"),
+        )
         .route("/auth/login", post(handlers::login))
         .route("/auth/logout", post(handlers::logout))
         .with_state(auth_state);
