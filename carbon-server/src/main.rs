@@ -78,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await;
 
-    let http_router = server_http::build_router(app_state);
+    let http_router = server_http::build_router(app_state, &config);
 
     // ============================================
     // STEP 4: Spawn HTTP Server Task

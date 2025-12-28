@@ -1,3 +1,5 @@
+use tracing::warn;
+
 pub enum Protocol {
     Http(u16),                  // port
     Https(u16, String, String), // port, cert_path, key_path,
@@ -12,6 +14,7 @@ pub struct Config {
     pub data_dir: String,
     pub admin_username: String,
     pub admin_password: String,
+    pub allowed_origins: Vec<String>,
 }
 
 impl Config {
@@ -41,8 +44,11 @@ impl Config {
                 .unwrap_or_else(|_| Self::DEFAULT_DATA_DIR.to_string()),
             admin_username: std::env::var("CARBON_ADMIN_USERNAME")
                 .unwrap_or_else(|_| Self::DEFAULT_ADMIN_USERNAME.to_string()),
-            admin_password: std::env::var("CARBON_ADMIN_PASSWORD")
-                .unwrap_or_else(|_| Self::DEFAULT_ADMIN_PASSWORD.to_string()),
+            admin_password: std::env::var("CARBON_ADMIN_PASSWORD").unwrap_or_else(|_| {
+                warn!("CARBON_ADMIN_PASSWORD not set, using default password 'admin123'");
+                warn!("⚠️  WARNING: Please change the default admin password immediately!");
+                Self::DEFAULT_ADMIN_PASSWORD.to_string()
+            }),
             http: match (&tls_cert_path, &tls_key_path) {
                 (Some(cert), Some(key)) => Protocol::Https(https_port, cert.clone(), key.clone()),
                 _ => Protocol::Http(http_port),
@@ -51,6 +57,11 @@ impl Config {
                 (Some(cert), Some(key)) => Protocol::Tcps(tcp_port, cert.clone(), key.clone()),
                 _ => Protocol::Tcp(tcp_port),
             },
+            allowed_origins: std::env::var("CARBON_ALLOWED_ORIGINS")
+                .unwrap_or_else(|_| "*".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect(),
         }
     }
 }

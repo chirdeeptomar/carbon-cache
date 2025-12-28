@@ -13,6 +13,10 @@ path = "src/main.rs"
 [dependencies]
 dioxus = { version = "0.7.2", features = ["router"] }
 dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1", default-features = false }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+serde_json.workspace = true
+serde.workspace = true
+dotenvy.workspace = true
 
 [features]
 default = ["web"]

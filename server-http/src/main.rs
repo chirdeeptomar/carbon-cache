@@ -6,9 +6,10 @@ mod state;
 mod validation;
 
 use carbon::auth::{
-    defaults::create_default_admin, AuthService, MokaSessionRepository, RoleService,
-    SledRoleRepository, SledUserRepository, SessionStore, UserRepository, UserService,
+    defaults::create_default_admin, AuthService, MokaSessionRepository, RoleService, SessionStore,
+    SledRoleRepository, SledUserRepository, UserRepository, UserService,
 };
+use shared::config::{self, Config};
 use state::AppState;
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,15 +33,18 @@ async fn main() {
         Err(_) => info!("No .env file found, using system environment variables"),
     }
 
+    // Load configuration from environment variables
+    let config = Arc::new(config::Config::from_env());
+
     // Initialize auth system
     info!("Initializing authentication system...");
-    let (auth_service, user_service, role_service) = init_auth_system().await;
+    let (auth_service, user_service, role_service) = init_auth_system(&config).await;
 
     // Initialize session store (1 hour TTL)
     info!("Initializing session store...");
     let session_repository = Arc::new(MokaSessionRepository::new(
-        None,                               // No max sessions limit
-        Some(Duration::from_secs(3600)),    // 1 hour TTL
+        None,                            // No max sessions limit
+        Some(Duration::from_secs(3600)), // 1 hour TTL
     ));
     let session_store = Arc::new(SessionStore::new(session_repository));
 
@@ -48,7 +52,7 @@ async fn main() {
     let state = AppState::new(auth_service, user_service, role_service, session_store).await;
 
     // Build router
-    let router = routes::build_router(state);
+    let router = routes::build_router(state, &config);
 
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
@@ -99,11 +103,11 @@ async fn shutdown_signal() {
     info!("Shutting down gracefully...");
 }
 
-async fn init_auth_system() -> (Arc<AuthService>, Arc<UserService>, Arc<RoleService>) {
+async fn init_auth_system(
+    config: &Arc<Config>,
+) -> (Arc<AuthService>, Arc<UserService>, Arc<RoleService>) {
     // Get home directory for auth storage
-    let home_dir = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".to_string());
+    let home_dir = &config.data_dir;
 
     let auth_base_path = std::path::Path::new(&home_dir).join(".carbon");
 
@@ -143,25 +147,20 @@ async fn init_auth_system() -> (Arc<AuthService>, Arc<UserService>, Arc<RoleServ
         .expect("Admin role not found");
 
     // Check if default admin exists
-    let admin_username =
-        std::env::var("CARBON_ADMIN_USERNAME").unwrap_or_else(|_| "admin".to_string());
+    let admin_username = &config.admin_username;
     let admin_exists = user_repo
-        .username_exists(&admin_username)
+        .username_exists(admin_username)
         .await
         .unwrap_or(false);
 
     if !admin_exists {
         // Create default admin user
-        let admin_password = std::env::var("CARBON_ADMIN_PASSWORD").unwrap_or_else(|_| {
-            warn!("CARBON_ADMIN_PASSWORD not set, using default password 'admin123'");
-            warn!("⚠️  WARNING: Please change the default admin password immediately!");
-            "admin123".to_string()
-        });
+        let admin_password = &config.admin_password;
 
         info!("Creating default admin user: {}", admin_username);
         let admin_user = create_default_admin(
             admin_username.clone(),
-            admin_password,
+            admin_password.clone(),
             admin_role.id.clone(),
         )
         .expect("Failed to create default admin user");

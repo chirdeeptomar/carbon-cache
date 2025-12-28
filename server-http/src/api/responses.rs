@@ -3,6 +3,11 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::collections::HashSet;
 
+#[derive(Serialize)]
+pub struct HealthResponse {
+    pub message: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
     pub id: String,
