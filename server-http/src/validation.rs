@@ -1,5 +1,5 @@
-use crate::api::requests::CreateCacheRequest;
 use carbon::domain::{CacheConfig, CacheEvictionStrategy, EvictionAlgorithm};
+use shared_http::api::requests::CreateCacheRequest;
 
 // Constants for validation ranges
 const MIN_MEM_BYTES: u64 = 1_048_576; // 1 MB

@@ -1,7 +1,3 @@
-use crate::api::{
-    AssignRolesRequest, ChangePasswordRequest, CreateUserRequest, ErrorResponse, ListUsersResponse,
-    ResetPasswordRequest, UserResponse,
-};
 use crate::middleware::check_permission;
 use crate::state::AppState;
 use axum::{
@@ -10,6 +6,10 @@ use axum::{
     Extension, Json,
 };
 use carbon::auth::{Permission, User};
+use shared_http::api::{
+    AssignRolesRequest, ChangePasswordRequest, CreateUserRequest, ErrorResponse, ListUsersResponse,
+    ResetPasswordRequest, UserResponse,
+};
 use tracing::{error, info};
 
 /// POST /admin/users - Create a new user

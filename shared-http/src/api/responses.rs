@@ -1,7 +1,55 @@
+#[cfg(not(target_arch = "wasm32"))]
 use carbon::auth::{Permission, Role, User};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::HashSet;
+
+// For WASM builds, define Permission locally
+#[cfg(target_arch = "wasm32")]
+pub type Permission = String;
+
+/// Response body for successful login
+#[derive(Debug, Serialize)]
+pub struct LoginResponse {
+    /// The session token to use for logout
+    pub token: String,
+    /// Session expiration time in seconds from now
+    pub expires_in: u64,
+    /// Username of the authenticated user
+    pub username: String,
+}
+
+impl From<Value> for LoginResponse {
+    fn from(user: Value) -> Self {
+        Self {
+            token: user
+                .get("token")
+                .unwrap_or_default()
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
+            expires_in: user
+                .get("expires_in")
+                .unwrap_or_default()
+                .as_u64()
+                .unwrap_or_default(),
+            username: user
+                .get("username")
+                .unwrap_or_default()
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
+        }
+    }
+}
+
+/// Response body for logout
+#[derive(Debug, Serialize)]
+pub struct LogoutResponse {
+    /// Success message
+    pub message: String,
+}
 
 #[derive(Serialize)]
 pub struct HealthResponse {
@@ -17,6 +65,7 @@ pub struct UserResponse {
     pub updated_at: DateTime<Utc>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<User> for UserResponse {
     fn from(user: User) -> Self {
         Self {
@@ -43,6 +92,7 @@ pub struct RoleResponse {
     pub created_at: DateTime<Utc>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<Role> for RoleResponse {
     fn from(role: Role) -> Self {
         Self {

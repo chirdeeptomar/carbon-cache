@@ -2,7 +2,7 @@
 name = "carbon-admin-ui"
 version = "0.1.0"
 authors = ["Chirdeep Tomar <chirdeep.tomar@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 [[bin]]
 name = "carbon-admin-ui"
@@ -13,10 +13,24 @@ path = "src/main.rs"
 [dependencies]
 dioxus = { version = "0.7.2", features = ["router"] }
 dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1", default-features = false }
-reqwest = { version = "0.12", default-features = false, features = ["json"] }
 serde_json.workspace = true
 serde.workspace = true
 dotenvy.workspace = true
+shared-http.workspace = true
+gloo-timers = { version = "0.3", features = ["futures"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+[target.'cfg(all(target_arch = "wasm32"))'.dependencies.getrandom]
+version = "0.3"
+features = ["wasm_js"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
 
 [features]
 default = ["web"]

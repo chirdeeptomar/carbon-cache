@@ -144,15 +144,15 @@ impl SessionRepository for MokaSessionRepository {
 
             // Find most recently accessed valid session
             for token in token_list.iter() {
-                if let Some(session) = self.sessions.get(token).await {
-                    if !session.is_expired() {
-                        valid_tokens.push(token.clone());
+                if let Some(session) = self.sessions.get(token).await
+                    && !session.is_expired()
+                {
+                    valid_tokens.push(token.clone());
 
-                        if most_recent.is_none()
-                            || session.last_accessed > most_recent.as_ref().unwrap().last_accessed
-                        {
-                            most_recent = Some(session);
-                        }
+                    if most_recent.is_none()
+                        || session.last_accessed > most_recent.as_ref().unwrap().last_accessed
+                    {
+                        most_recent = Some(session);
                     }
                 }
             }
@@ -189,10 +189,10 @@ impl SessionRepository for MokaSessionRepository {
             };
 
             for token in token_list.iter() {
-                if let Some(session) = self.sessions.get(token).await {
-                    if !session.is_expired() {
-                        sessions.push(session);
-                    }
+                if let Some(session) = self.sessions.get(token).await
+                    && !session.is_expired()
+                {
+                    sessions.push(session);
                 }
             }
         }
@@ -234,14 +234,12 @@ impl SessionRepository for MokaSessionRepository {
             let mut most_recent: Option<Session> = None;
 
             for token in token_list.iter() {
-                if let Some(session) = self.sessions.get(token).await {
-                    if !session.is_expired() {
-                        if most_recent.is_none()
-                            || session.last_accessed > most_recent.as_ref().unwrap().last_accessed
-                        {
-                            most_recent = Some(session);
-                        }
-                    }
+                if let Some(session) = self.sessions.get(token).await
+                    && !session.is_expired()
+                    && (most_recent.is_none()
+                        || session.last_accessed > most_recent.as_ref().unwrap().last_accessed)
+                {
+                    most_recent = Some(session);
                 }
             }
 

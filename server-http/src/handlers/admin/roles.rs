@@ -1,6 +1,3 @@
-use crate::api::{
-    CreateRoleRequest, ErrorResponse, ListRolesResponse, RoleResponse, UpdateRoleRequest,
-};
 use crate::middleware::check_permission;
 use crate::state::AppState;
 use axum::{
@@ -9,6 +6,9 @@ use axum::{
     Extension, Json,
 };
 use carbon::auth::{Permission, User};
+use shared_http::api::{
+    CreateRoleRequest, ErrorResponse, ListRolesResponse, RoleResponse, UpdateRoleRequest,
+};
 use tracing::{error, info};
 
 /// POST /admin/roles - Create a new custom role

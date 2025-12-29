@@ -8,6 +8,7 @@ members = [
     "carbon",
     "carbon-server",
     "carbon-admin-ui",
+    "shared-http",
 ]
 
 [workspace.dependencies]
@@ -36,7 +37,7 @@ bytes = "1.11.0"
 dashmap = "6.1.0"
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.0", features = ["v4", "serde"] }
+uuid = { version = "1.0", features = ["v4", "serde", "js"] }
 
 # Caching
 moka = { version = "0.12", features = ["future"] }
@@ -67,6 +68,7 @@ carbon = { path = "carbon" }
 carbon-server = { path = "carbon-server" }
 carbon-admin-ui = { path = "carbon-admin-ui" }
 shared = { path = "shared" }
+shared-http = { path = "shared-http" }
 storage-engine = { path = "storage-engine" }
 server-http = { path = "server-http" }
 server-tcp = { path = "server-tcp" }

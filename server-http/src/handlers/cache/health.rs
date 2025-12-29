@@ -1,6 +1,6 @@
 use axum::{http::StatusCode, Json};
 
-use crate::api::HealthResponse;
+use shared_http::api::HealthResponse;
 
 /// GET /health
 pub async fn health_check() -> Result<Json<HealthResponse>, StatusCode> {

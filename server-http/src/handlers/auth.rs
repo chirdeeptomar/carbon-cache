@@ -5,34 +5,8 @@ use axum::{
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use carbon::auth::{AuthService, MokaSessionRepository, SessionStore};
-use serde::{Deserialize, Serialize};
+use shared_http::api::{LoginRequest, LoginResponse, LogoutResponse};
 use std::sync::Arc;
-
-/// Request body for login endpoint
-#[derive(Debug, Deserialize)]
-pub struct LoginRequest {
-    pub username: String,
-    pub password: String,
-}
-
-/// Response body for successful login
-#[derive(Debug, Serialize)]
-pub struct LoginResponse {
-    /// The session token to use for logout
-    pub token: String,
-    /// Session expiration time in seconds from now
-    pub expires_in: u64,
-    /// Username of the authenticated user
-    pub username: String,
-}
-
-/// Response body for logout
-#[derive(Debug, Serialize)]
-pub struct LogoutResponse {
-    /// Success message
-    pub message: String,
-}
-
 /// State needed for auth handlers
 #[derive(Clone)]
 pub struct AuthHandlerState {

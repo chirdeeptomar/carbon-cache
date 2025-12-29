@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use dioxus::prelude::*;
 
 mod components;
-use components::{button::Button, input::Input};
-
 use crate::api::ApiClient;
+use components::{button::Button, input::Input, toast::ToastProvider};
+use dioxus_primitives::toast::{ToastOptions, use_toast};
+use gloo_timers::future::TimeoutFuture;
 
 mod api;
 mod config;
@@ -14,6 +17,8 @@ enum Route {
     #[layout(Navbar)]
     #[route("/")]
     Home {},
+    #[route("/dashboard")]
+    Dashboard {},
 }
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -42,8 +47,8 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: DX_THEME_CSS }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
-        Router::<Route> {
-        }
+
+        ToastProvider { Router::<Route> {} }
     }
 }
 
@@ -51,6 +56,8 @@ fn App() -> Element {
 pub fn Login() -> Element {
     let mut username: Signal<String> = use_signal(|| "".to_string());
     let mut password: Signal<String> = use_signal(|| "".to_string());
+    let toaster = use_toast();
+    let nav = navigator();
 
     rsx! {
         div { id: "login",
@@ -100,12 +107,45 @@ pub fn Login() -> Element {
 
                     div { align_content: "center",
                         Button {
-                            onclick: move |_| async move {
-                                info!("Logging in...");
-                                info!("Username: {}", username());
-                                info!("Password: {}", "*".repeat(password().len()));
+                            onclick: move |_| {
+                                let username_val = username();
+                                let password_val = password();
+
+                                spawn(async move {
+                                    let login_result = use_context::<ApiClient>()
+                                        .login(&username_val, &password_val)
+                                        .await;
+
+                                    match login_result {
+                                        Result::Ok(response) => {
+                                            // Show success toast for 1 second
+                                            let success_options = ToastOptions::new()
+                                                .duration(Duration::from_secs(1))
+                                                .permanent(false);
+
+                                            toaster
+                                                .success(
+                                                    format!(
+                                                        "Login successful! Welcome back, {}",
+                                                        response.username,
+                                                    ),
+                                                    success_options,
+                                                );
+                                            TimeoutFuture::new(1000).await;
+                                            nav.push(Route::Dashboard {});
+                                        }
+                                        Result::Err(_) => {
+                                            let error_options = ToastOptions::new().permanent(true);
+                                            toaster
+                                                .error(
+                                                    "Login failed. Invalid username or password.".to_string(),
+                                                    error_options,
+                                                );
+                                        }
+                                    }
+                                });
                             },
-                            r#type: "submit",
+                            r#type: "button",
                             "Login"
                         }
                     }
@@ -121,6 +161,18 @@ fn Home() -> Element {
     rsx! {
         ServerStatus {}
         Login {}
+    }
+}
+
+/// Dashboard page (after login)
+#[component]
+fn Dashboard() -> Element {
+    rsx! {
+        ServerStatus {}
+        div { class: "dashboard",
+            h1 { "Dashboard" }
+            p { "Welcome! You are logged in." }
+        }
     }
 }
 

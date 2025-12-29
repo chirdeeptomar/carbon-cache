@@ -1,4 +1,3 @@
-use crate::api::{DeleteResponse, GetResponse, PutRequest, PutResponse};
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},
@@ -7,6 +6,7 @@ use axum::{
 };
 use bytes::Bytes;
 use carbon::planes::data::operation::CacheOperations;
+use shared_http::api::{DeleteResponse, GetResponse, PutRequest, PutResponse};
 use tracing::info;
 
 /// PUT /cache/:cache_name/:key

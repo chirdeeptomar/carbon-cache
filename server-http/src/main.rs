@@ -1,4 +1,3 @@
-mod api;
 mod handlers;
 mod middleware;
 mod routes;

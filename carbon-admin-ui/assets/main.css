@@ -145,6 +145,42 @@ body {
     }
 }
 
+/* Toast content styling */
+.toast-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.toast-content strong {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.toast-content p {
+    font-size: 13px;
+    margin: 0;
+    opacity: 0.9;
+}
+
+/* Dashboard styling */
+.dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.dashboard h1 {
+    font-size: 2.5rem;
+    margin-bottom: 16px;
+}
+
+.dashboard p {
+    font-size: 1.1rem;
+    opacity: 0.8;
+}
+
 #links {
     width: 400px;
     text-align: left;

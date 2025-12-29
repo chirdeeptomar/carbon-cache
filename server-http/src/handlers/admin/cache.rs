@@ -1,6 +1,5 @@
-use crate::api::requests::CreateCacheRequest;
+use shared_http::api::requests::CreateCacheRequest;
 
-use crate::api::responses::{CreateCacheResponse, DropCacheResponse, ValidationErrorResponse};
 use crate::state::AppState;
 use crate::validation::CacheConfigFactory;
 use axum::{
@@ -10,6 +9,9 @@ use axum::{
 };
 use carbon::planes::control::operation::AdminOperations;
 use carbon::ports::StorageFactory;
+use shared_http::api::responses::{
+    CreateCacheResponse, DropCacheResponse, ValidationErrorResponse,
+};
 use storage_engine::UnifiedStorageFactory;
 use tracing::info;
 
