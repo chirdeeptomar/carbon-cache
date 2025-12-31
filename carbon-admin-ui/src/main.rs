@@ -8,18 +8,32 @@ mod config;
 mod pages;
 mod widgets;
 
-use pages::dashboard::Dashboard;
-use pages::login::Login;
+use pages::{
+    AccessManagement, ClusterMembership, ConnectedClients, Dashboard, DataContainer, Login,
+    Statistics,
+};
+use widgets::header::Header;
 use widgets::server_status::ServerStatus;
+use widgets::sidebar::Sidebar;
 
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
 enum Route {
-    #[layout(Navbar)]
     #[route("/")]
     Home {},
+    #[layout(Navbar)]
     #[route("/dashboard")]
     Dashboard {},
+    #[route("/data-container")]
+    DataContainer {},
+    #[route("/access")]
+    AccessManagement {},
+    #[route("/clients")]
+    ConnectedClients {},
+    #[route("/statistics")]
+    Statistics {},
+    #[route("/cluster")]
+    ClusterMembership {},
 }
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -61,10 +75,16 @@ fn Home() -> Element {
     }
 }
 
-/// Shared navbar component.
+/// Shared navbar component with main admin layout.
 #[component]
 fn Navbar() -> Element {
     rsx! {
-        Outlet::<Route> {}
+        div { class: "admin-layout",
+            Sidebar {}
+            div { class: "main-container",
+                Header {}
+                main { class: "content-area", Outlet::<Route> {} }
+            }
+        }
     }
 }

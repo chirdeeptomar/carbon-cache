@@ -90,7 +90,7 @@ pub fn Login() -> Element {
                                                     success_options,
                                                 );
                                             TimeoutFuture::new(1000).await;
-                                            nav.push(Route::Dashboard {});
+                                            nav.push(Route::DataContainer {});
                                         }
                                         Result::Err(_) => {
                                             let error_options = ToastOptions::new().permanent(true);

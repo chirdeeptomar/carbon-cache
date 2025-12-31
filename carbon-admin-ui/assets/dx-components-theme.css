@@ -14,18 +14,10 @@ body {
   font-weight: 400;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --dark: initial;
-    --light: ;
-  }
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --dark: ;
-    --light: initial;
-  }
+/* Force dark theme always */
+:root {
+  --dark: initial;
+  --light: ;
 }
 
 :root {

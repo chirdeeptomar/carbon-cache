@@ -18,6 +18,8 @@ serde.workspace = true
 dotenvy.workspace = true
 shared-http.workspace = true
 gloo-timers = { version = "0.3", features = ["futures"] }
+strum = "0.27"
+strum_macros = "0.27"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["json"] }

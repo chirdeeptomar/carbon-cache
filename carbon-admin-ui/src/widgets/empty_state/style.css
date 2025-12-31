@@ -1,0 +1,29 @@
+/* Empty State Widget Styles */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 24px;
+    text-align: center;
+}
+
+.empty-icon {
+    font-size: 64px;
+    margin-bottom: 24px;
+    opacity: 0.5;
+}
+
+.empty-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    color: #ffffff;
+}
+
+.empty-description {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0 0 24px 0;
+    max-width: 500px;
+}
