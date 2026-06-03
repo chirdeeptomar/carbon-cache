@@ -6,7 +6,7 @@ mod validation;
 
 use carbon::auth::{
     defaults::create_default_admin, AuthService, MokaSessionRepository, RoleService, SessionStore,
-    SledRoleRepository, SledUserRepository, UserRepository, UserService,
+    RedbRoleRepository, RedbUserRepository, UserRepository, UserService,
 };
 use shared::config::{self, Config};
 use state::AppState;
@@ -117,11 +117,11 @@ async fn init_auth_system(
 
     // Initialize repositories
     let user_repo = Arc::new(
-        SledUserRepository::new(auth_base_path.join("users.sled"))
+        RedbUserRepository::new(auth_base_path.join("users.redb"))
             .expect("Failed to initialize user repository"),
     );
     let role_repo = Arc::new(
-        SledRoleRepository::new(auth_base_path.join("roles.sled"))
+        RedbRoleRepository::new(auth_base_path.join("roles.redb"))
             .expect("Failed to initialize role repository"),
     );
 

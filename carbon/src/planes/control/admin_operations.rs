@@ -4,7 +4,7 @@ use crate::domain::response::admin::{
     DescribeCacheResponse, DropCacheResponse, ListCachesResponse,
 };
 use crate::domain::{CacheConfig, CacheInfo};
-use crate::persistence::SledPersistence;
+use crate::persistence::RedbPersistence;
 use crate::planes::control::operation::AdminOperations;
 use crate::ports::{CacheStore, StorageFactory};
 use async_trait::async_trait;
@@ -36,7 +36,7 @@ where
     // DashMap is lock-free internally, no need for RwLock wrapper
     cache_registry: Arc<DashMap<String, CacheMetadata<K, V>>>,
     // Optional persistence layer for cache configurations
-    persistence: Option<Arc<SledPersistence>>,
+    persistence: Option<Arc<RedbPersistence>>,
 }
 
 impl<K, V> Debug for CacheManager<K, V>
@@ -70,7 +70,7 @@ where
         persistence_path: impl AsRef<Path>,
         factory: Arc<dyn StorageFactory<K, V>>,
     ) -> Result<Self> {
-        let persistence = SledPersistence::new(persistence_path)?;
+        let persistence = RedbPersistence::new(persistence_path)?;
 
         // Load all configs from persistence
         let configs = persistence.load_all()?;

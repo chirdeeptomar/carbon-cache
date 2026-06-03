@@ -110,14 +110,14 @@ impl RoleService {
 mod tests {
     use super::*;
     use crate::auth::models::Permission;
-    use crate::auth::sled_repository::SledRoleRepository;
+    use crate::auth::redb_repository::RedbRoleRepository;
     use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_create_role() {
         let temp_dir = TempDir::new().unwrap();
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);
@@ -140,7 +140,7 @@ mod tests {
     async fn test_update_role() {
         let temp_dir = TempDir::new().unwrap();
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);
@@ -172,7 +172,7 @@ mod tests {
     async fn test_initialize_default_roles() {
         let temp_dir = TempDir::new().unwrap();
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);
@@ -192,7 +192,7 @@ mod tests {
     async fn test_cannot_update_system_role() {
         let temp_dir = TempDir::new().unwrap();
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);
@@ -213,7 +213,7 @@ mod tests {
     async fn test_cannot_delete_system_role() {
         let temp_dir = TempDir::new().unwrap();
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let role_service = RoleService::new(role_repo);

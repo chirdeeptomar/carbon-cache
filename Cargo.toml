@@ -44,7 +44,7 @@ moka = { version = "0.12.15", features = ["future"] }
 foyer = "0.22.3"
 
 # Storage
-sled = "0.34"
+redb = "2"
 
 # Error handling
 thiserror = "2.0.18"

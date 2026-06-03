@@ -161,17 +161,17 @@ impl UserService {
 mod tests {
     use super::*;
     use crate::auth::defaults::create_user_role;
-    use crate::auth::sled_repository::{SledRoleRepository, SledUserRepository};
+    use crate::auth::redb_repository::{RedbRoleRepository, RedbUserRepository};
     use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_create_user() {
         let temp_dir = TempDir::new().unwrap();
         let user_repo =
-            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+            Arc::new(RedbUserRepository::new(temp_dir.path().join("users.redb")).unwrap())
                 as Arc<dyn UserRepository>;
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         // Create a role first
@@ -199,10 +199,10 @@ mod tests {
     async fn test_change_password() {
         let temp_dir = TempDir::new().unwrap();
         let user_repo =
-            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+            Arc::new(RedbUserRepository::new(temp_dir.path().join("users.redb")).unwrap())
                 as Arc<dyn UserRepository>;
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let role = create_user_role();
@@ -236,10 +236,10 @@ mod tests {
     async fn test_cannot_delete_self() {
         let temp_dir = TempDir::new().unwrap();
         let user_repo =
-            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+            Arc::new(RedbUserRepository::new(temp_dir.path().join("users.redb")).unwrap())
                 as Arc<dyn UserRepository>;
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let role = create_user_role();
