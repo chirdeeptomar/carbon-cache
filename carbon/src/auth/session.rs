@@ -1,5 +1,6 @@
 use super::models::User;
 use chrono::DateTime;
+use rand::RngExt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Session token type - a secure random string
@@ -74,8 +75,6 @@ impl Session {
 
 /// Generate a cryptographically secure random session token
 pub fn generate_session_token() -> SessionToken {
-    use rand::Rng;
-
     // Generate 32 random bytes and encode as hex (64 characters)
     let mut rng = rand::rng();
     let bytes: Vec<u8> = (0..32).map(|_| rng.random()).collect();
