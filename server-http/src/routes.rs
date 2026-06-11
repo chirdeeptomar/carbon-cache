@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
 use crate::handlers;
-use crate::middleware::{auth_middleware, AuthMiddlewareState};
+use crate::middleware::{AuthMiddlewareState, auth_middleware};
 use crate::state::AppState;
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::{
-    middleware,
+    Router, middleware,
     routing::{delete, get, post, put},
-    Router,
 };
 use shared::config::Config;
 use tower_http::cors::{Any, CorsLayer};
@@ -91,11 +90,18 @@ pub fn build_router(state: AppState, config: &Arc<Config>) -> Router {
         )
         .allow_headers([AUTHORIZATION, CONTENT_TYPE]);
 
+    // Raft/cluster endpoints — read-only, public. Only respond in distributed mode.
+    let raft_routes = Router::new()
+        .route("/raft/metrics", get(handlers::raft_metrics))
+        .route("/cluster/nodes", get(handlers::cluster_nodes))
+        .with_state(state.clone());
+
     // Combine routes
     Router::new()
         .merge(public_routes)
         .merge(auth_routes)
         .merge(protected_routes)
+        .merge(raft_routes)
         .layer(cors_layer)
         .layer(NormalizePathLayer::trim_trailing_slash())
         .layer(TraceLayer::new_for_http())

@@ -1,4 +1,5 @@
 pub mod handlers;
+pub mod leader_proxy;
 pub mod middleware;
 pub mod routes;
 pub mod state;

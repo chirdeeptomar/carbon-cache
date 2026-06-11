@@ -25,8 +25,10 @@ tower-http = { workspace = true, features = ["trace", "normalize-path", "fs"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 carbon.workspace = true
+carbon-raft.workspace = true
 shared.workspace = true
 shared-http.workspace = true
 storage-engine.workspace = true
 dhat.workspace = true
 bytes.workspace = true
+reqwest.workspace = true

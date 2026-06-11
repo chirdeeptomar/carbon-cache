@@ -2,7 +2,7 @@ use super::error::AuthError;
 use super::models::{Role, User};
 use super::repository::{RoleRepository, UserRepository};
 use async_trait::async_trait;
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use std::path::Path;
 use std::sync::Arc;
 

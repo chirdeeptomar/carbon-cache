@@ -1,0 +1,19 @@
+[package]
+name = "carbon-raft"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+openraft = { workspace = true }
+redb = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+axum = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+carbon = { workspace = true }
+shared = { workspace = true }

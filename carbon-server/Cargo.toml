@@ -12,6 +12,9 @@ path = "src/main.rs"
 server-http.workspace = true
 server-tcp.workspace = true
 
+# Distributed consensus
+carbon-raft.workspace = true
+
 # Core dependencies
 carbon.workspace = true
 shared.workspace = true

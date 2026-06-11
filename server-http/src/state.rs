@@ -1,108 +1,44 @@
 use bytes::Bytes;
 use carbon::auth::{AuthService, MokaSessionRepository, RoleService, SessionStore, UserService};
 use carbon::events::CacheItemEvent;
-use carbon::planes::control::CacheManager;
-use carbon::planes::data::CacheOperationsService;
+use carbon_raft::node::RaftCacheNode;
 use std::sync::Arc;
-use storage_engine::UnifiedStorageFactory;
 use tokio::sync::broadcast;
 
-/// Server state shared across handlers
+/// Server state shared across all HTTP handlers.
+/// Raft is always active — single-node deployments self-elect as leader immediately.
 #[derive(Clone)]
 pub struct AppState {
-    pub cache_manager: CacheManager<Vec<u8>, Bytes>,
-    pub cache_operations: Arc<CacheOperationsService<Vec<u8>, Bytes>>,
     pub event_channel: broadcast::Sender<CacheItemEvent>,
     pub auth_service: Arc<AuthService>,
     pub user_service: Arc<UserService>,
     pub role_service: Arc<RoleService>,
     pub session_store: Arc<SessionStore<MokaSessionRepository>>,
+    pub raft_node: Arc<RaftCacheNode>,
 }
 
 impl AppState {
     pub async fn new(
+        raft_node: Arc<RaftCacheNode>,
         auth_service: Arc<AuthService>,
         user_service: Arc<UserService>,
         role_service: Arc<RoleService>,
         session_store: Arc<SessionStore<MokaSessionRepository>>,
     ) -> Self {
-        // Try to initialize with persistence, fall back to in-memory if it fails
-        let cache_manager = match Self::init_with_persistence().await {
-            Ok(manager) => {
-                tracing::info!("CacheManager initialized with persistence enabled");
-                manager
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to initialize persistence: {}. Running in-memory mode.",
-                    e
-                );
-                CacheManager::new()
-            }
-        };
-
-        // Create broadcast channel for SSE events (1000 event buffer capacity)
-        let (event_tx, _event_rx) = broadcast::channel(1000);
-
-        // Create cache operations service with event broadcaster
-        let cache_operations = Arc::new(CacheOperationsService::with_event_broadcaster(
-            cache_manager.clone(),
-            event_tx.clone(),
-        ));
+        let (event_tx, _event_rx) = broadcast::channel::<CacheItemEvent>(1000);
 
         Self {
-            cache_manager,
-            cache_operations,
             event_channel: event_tx,
             auth_service,
             user_service,
             role_service,
             session_store,
+            raft_node,
         }
-    }
-
-    /// Create AppState with an existing CacheManager (for unified server)
-    pub async fn new_with_cache_manager(
-        cache_manager: CacheManager<Vec<u8>, Bytes>,
-        auth_service: Arc<AuthService>,
-        user_service: Arc<UserService>,
-        role_service: Arc<RoleService>,
-        session_store: Arc<SessionStore<MokaSessionRepository>>,
-    ) -> Self {
-        // Create broadcast channel for SSE events
-        let (event_tx, _event_rx) = broadcast::channel(1000);
-
-        // Create cache operations service with event broadcaster
-        let cache_operations = Arc::new(CacheOperationsService::with_event_broadcaster(
-            cache_manager.clone(),
-            event_tx.clone(),
-        ));
-
-        Self {
-            cache_manager,
-            cache_operations,
-            event_channel: event_tx,
-            auth_service,
-            user_service,
-            role_service,
-            session_store,
-        }
-    }
-
-    pub async fn init_with_persistence() -> shared::Result<CacheManager<Vec<u8>, Bytes>> {
-        // Get home directory for persistence path
-        let home_dir = std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .unwrap_or_else(|_| ".".to_string());
-
-        let persistence_path = std::path::Path::new(&home_dir)
-            .join(".carbon")
-            .join("caches.sled");
-
-        // Create unified storage factory (supports Moka, Foyer Memory, and Foyer Hybrid)
-        let factory = Arc::new(UnifiedStorageFactory);
-
-        // Initialize CacheManager with persistence
-        CacheManager::new_with_persistence(persistence_path, factory).await
     }
 }
+
+// Suppress unused import warning — Bytes is kept for downstream handler compatibility
+const _: fn() = || {
+    let _: Bytes;
+};

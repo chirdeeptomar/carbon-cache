@@ -1,7 +1,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 use carbon::auth::{Permission, Role, User};
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -126,7 +126,7 @@ impl ErrorResponse {
 
 // === Cache Operation Models ===
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct PutResponse {
     pub ok: bool,
 }
@@ -139,7 +139,7 @@ pub struct GetResponse {
     pub ttl_ms_remaining: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct DeleteResponse {
     pub deleted: bool,
 }

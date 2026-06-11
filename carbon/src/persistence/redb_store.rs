@@ -1,5 +1,5 @@
 use crate::domain::CacheConfig;
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use shared::{Error, Result};
 use std::path::Path;
 
@@ -65,7 +65,8 @@ impl RedbPersistence {
             .iter()
             .map_err(|e| Error::Internal(format!("Failed to iterate: {}", e)))?
         {
-            let (_, v) = entry.map_err(|e| Error::Internal(format!("Failed to read entry: {}", e)))?;
+            let (_, v) =
+                entry.map_err(|e| Error::Internal(format!("Failed to read entry: {}", e)))?;
             let config: CacheConfig = serde_json::from_slice(v.value())
                 .map_err(|e| Error::Internal(format!("Failed to deserialize config: {}", e)))?;
             configs.push(config);
