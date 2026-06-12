@@ -1,7 +1,6 @@
 use crate::protocol::{Request, Response};
 use bytes::Bytes;
 use carbon::planes::data::operation::CacheOperations;
-use carbon_raft::node::RaftCacheNode;
 use futures::{SinkExt, StreamExt};
 use std::sync::Arc;
 use tokio::net::TcpStream;
@@ -15,30 +14,9 @@ fn make_codec() -> LengthDelimitedCodec {
         .new_codec()
 }
 
-/// Forward a raw TCP frame to the leader's TCP address and return the response frame.
-async fn forward_frame_to_leader(leader_tcp_addr: &str, raw_frame: Bytes) -> Result<Bytes, String> {
-    let addr = leader_tcp_addr.replace("0.0.0.0", "127.0.0.1");
-    let stream = TcpStream::connect(&addr)
-        .await
-        .map_err(|e| format!("connect to leader TCP {addr}: {e}"))?;
-    stream.set_nodelay(true).ok();
-
-    let mut framed = Framed::new(stream, make_codec());
-    framed
-        .send(raw_frame)
-        .await
-        .map_err(|e| format!("send frame to leader: {e}"))?;
-
-    match framed.next().await {
-        Some(Ok(resp)) => Ok(resp.freeze()),
-        Some(Err(e)) => Err(format!("receive from leader: {e}")),
-        None => Err("leader closed connection".to_string()),
-    }
-}
-
 pub async fn process_connection(
     socket: TcpStream,
-    raft_node: Arc<RaftCacheNode>,
+    ops: Arc<dyn CacheOperations<Vec<u8>, Bytes>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     socket.set_nodelay(true).ok();
 
@@ -46,9 +24,8 @@ pub async fn process_connection(
 
     while let Some(frame_result) = framed.next().await {
         let frame = frame_result?;
-        let raw = frame.clone().freeze();
 
-        let request = match Request::decode(raw.clone()) {
+        let request = match Request::decode(frame.freeze()) {
             Ok(req) => req,
             Err(e) => {
                 tracing::error!("Failed to decode request: {}", e);
@@ -58,24 +35,6 @@ pub async fn process_connection(
         };
 
         info!("Received request: {:?}", request);
-
-        // For write commands, forward to leader if we are not it.
-        let is_write = matches!(request, Request::Put { .. } | Request::Delete { .. });
-        if is_write && !raft_node.is_leader() {
-            if let Some(leader) = raft_node.get_leader_node() {
-                match forward_frame_to_leader(&leader.tcp_addr, raw).await {
-                    Ok(resp_bytes) => framed.send(resp_bytes).await?,
-                    Err(e) => {
-                        framed
-                            .send(Response::Error { msg: format!("leader forward failed: {e}") }.encode())
-                            .await?
-                    }
-                }
-                continue;
-            }
-        }
-
-        let ops: &dyn CacheOperations<Vec<u8>, Bytes> = &*raft_node;
 
         let response = match request {
             Request::Ping => Response::Pong,

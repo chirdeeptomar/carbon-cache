@@ -24,4 +24,3 @@ bytes.workspace = true
 serde.workspace = true
 tokio-util.workspace = true
 futures.workspace = true
-carbon-raft.workspace = true
