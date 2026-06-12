@@ -1,5 +1,11 @@
 use tracing::warn;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ServerMode {
+    Standalone,
+    Cluster,
+}
+
 pub enum Protocol {
     Http(u16),                  // port
     Https(u16, String, String), // port, cert_path, key_path,
@@ -8,6 +14,7 @@ pub enum Protocol {
 }
 
 pub struct Config {
+    pub mode: ServerMode,
     pub host: String,
     pub http: Protocol,
     pub tcp: Protocol,
@@ -35,6 +42,14 @@ impl Config {
     const DEFAULT_DATA_DIR: &str = "./data";
 
     pub fn from_env() -> Self {
+        let mode = match std::env::var("CARBON_MODE")
+            .unwrap_or_else(|_| "standalone".to_string())
+            .to_lowercase()
+            .as_str()
+        {
+            "cluster" => ServerMode::Cluster,
+            _ => ServerMode::Standalone,
+        };
         let host = std::env::var("CARBON_HOST").unwrap_or_else(|_| "localhost".to_string());
         let tcp_port = std::env::var("CARBON_TCP_PORT")
             .unwrap_or_else(|_| "5500".to_string())
@@ -72,6 +87,7 @@ impl Config {
             .unwrap_or_else(|_| format!("./data/raft/{node_id}"));
 
         Self {
+            mode,
             host,
             data_dir: std::env::var("CARBON_DATA_DIR")
                 .unwrap_or_else(|_| Self::DEFAULT_DATA_DIR.to_string()),
