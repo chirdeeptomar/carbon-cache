@@ -38,7 +38,7 @@ pub async fn create_role(
 
     info!("CREATE_ROLE: name={}, requested_by={}", req.name, current_user.username);
 
-    let raft = &state.raft_node;
+    let raft = state.raft_node.as_ref().expect("admin/roles routes require cluster mode");
     if raft.get_role_by_name(&req.name).await.is_some() {
         return Err(auth_err(AuthError::RoleAlreadyExists));
     }
@@ -66,8 +66,15 @@ pub async fn list_roles(
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
 
-    let roles: Vec<RoleResponse> =
-        state.raft_node.list_roles().await.into_iter().map(|r| r.into()).collect();
+    let roles: Vec<RoleResponse> = state
+        .raft_node
+        .as_ref()
+        .expect("list_roles requires cluster mode")
+        .list_roles()
+        .await
+        .into_iter()
+        .map(|r| r.into())
+        .collect();
     Ok(Json(ListRolesResponse { roles }))
 }
 
@@ -83,7 +90,13 @@ pub async fn get_role(
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
 
-    match state.raft_node.get_role_by_name(&name).await {
+    match state
+        .raft_node
+        .as_ref()
+        .expect("get_role requires cluster mode")
+        .get_role_by_name(&name)
+        .await
+    {
         Some(role) => Ok(Json(role.into())),
         None => Err(not_found("Role not found")),
     }
@@ -104,7 +117,7 @@ pub async fn update_role(
 
     info!("UPDATE_ROLE: name={}, requested_by={}", name, current_user.username);
 
-    let raft = &state.raft_node;
+    let raft = state.raft_node.as_ref().expect("admin/roles routes require cluster mode");
     let mut role = raft
         .get_role_by_name(&name)
         .await
@@ -139,7 +152,7 @@ pub async fn delete_role(
 
     info!("DELETE_ROLE: name={}, requested_by={}", name, current_user.username);
 
-    let raft = &state.raft_node;
+    let raft = state.raft_node.as_ref().expect("admin/roles routes require cluster mode");
     let role = raft
         .get_role_by_name(&name)
         .await
