@@ -22,7 +22,7 @@ pub async fn create_cache(
     State(state): State<AppState>,
     req: Request<Body>,
 ) -> Result<Json<CreateCacheResponse>, (StatusCode, Json<ValidationErrorResponse>)> {
-    let raft = &state.raft_node;
+    let raft = state.raft_node.as_ref().expect("admin/cache routes require cluster mode");
 
     if !raft.is_leader() {
         let resp = forward_to_leader(raft, req).await;
@@ -100,7 +100,7 @@ pub async fn drop_cache(
 ) -> Result<Json<DropCacheResponse>, StatusCode> {
     info!("DROP_CACHE: name={}", name);
 
-    let raft = &state.raft_node;
+    let raft = state.raft_node.as_ref().expect("admin/cache routes require cluster mode");
 
     if !raft.is_leader() {
         let resp = forward_to_leader(raft, req).await;
@@ -133,7 +133,7 @@ pub async fn list_caches(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     info!("LIST_CACHES");
 
-    let sm = state.raft_node.state.read().await;
+    let sm = state.raft_node.as_ref().expect("list_caches requires cluster mode").state.read().await;
     let caches: Vec<CacheInfo> =
         sm.list_configs().into_iter().map(|c| CacheInfo::from_config(&c)).collect();
     let resp = ListCachesResponse::new(caches);
@@ -147,7 +147,7 @@ pub async fn describe_cache(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     info!("DESCRIBE_CACHE: name={}", name);
 
-    let sm = state.raft_node.state.read().await;
+    let sm = state.raft_node.as_ref().expect("describe_cache requires cluster mode").state.read().await;
     match sm.describe_config(&name) {
         Some(config) => {
             let resp = DescribeCacheResponse::new(CacheInfo::from_config(&config));
