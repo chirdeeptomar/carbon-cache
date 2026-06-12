@@ -1,3 +1,5 @@
+mod standalone;
+
 use carbon::auth::{
     AuthService, MokaSessionRepository, RoleRepository, RoleService, SessionStore, UserRepository,
     UserService,
@@ -90,13 +92,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Initializing HTTP server components");
 
     let app_state = server_http::AppState::new(
-        raft_node.clone(),
+        raft_node.clone() as Arc<dyn carbon::planes::data::operation::CacheOperations<Vec<u8>, bytes::Bytes>>,
+        Some(raft_node.clone()),
         auth_service,
         user_service,
         role_service,
         session_store,
-    )
-    .await;
+    );
 
     let raft_node_for_tcp = raft_node.clone();
 
@@ -114,13 +116,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             config_http.http.port()
         );
 
-        let listener = TcpListener::bind(format!(
-            "{}:{}",
-            config_http.host,
-            config_http.http.port()
-        ))
-        .await
-        .expect("Failed to bind HTTP server");
+        let listener =
+            TcpListener::bind(format!("{}:{}", config_http.host, config_http.http.port()))
+                .await
+                .expect("Failed to bind HTTP server");
 
         info!(
             "HTTP Server listening on {}://{}:{}",
@@ -150,13 +149,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             config_tcp.tcp.port()
         );
 
-        let listener = TcpListener::bind(format!(
-            "{}:{}",
-            config_tcp.host,
-            config_tcp.tcp.port()
-        ))
-        .await
-        .expect("Failed to bind TCP server");
+        let listener = TcpListener::bind(format!("{}:{}", config_tcp.host, config_tcp.tcp.port()))
+            .await
+            .expect("Failed to bind TCP server");
 
         info!(
             "TCP Server listening on {}://{}:{}",
@@ -291,10 +286,10 @@ async fn init_raft_auth_defaults(
         }
     }
 
-    if admin_role_id.is_empty() {
-        if let Some(r) = node.get_role_by_name("admin").await {
-            admin_role_id = r.id;
-        }
+    if admin_role_id.is_empty()
+        && let Some(r) = node.get_role_by_name("admin").await
+    {
+        admin_role_id = r.id;
     }
 
     if !node.username_exists(&admin_username).await {
