@@ -68,20 +68,3 @@ where
         }
     }
 }
-
-/// Legacy factory for backward compatibility
-/// Deprecated: Use UnifiedStorageFactory instead
-#[deprecated(note = "Use UnifiedStorageFactory instead")]
-pub struct FoyerStorageFactory;
-
-#[allow(deprecated)]
-impl<K, V> StorageFactory<K, V> for FoyerStorageFactory
-where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
-{
-    fn create_from_config(&self, config: &CacheConfig) -> Arc<dyn CacheStore<K, V>> {
-        // Delegate to UnifiedStorageFactory
-        UnifiedStorageFactory.create_from_config(config)
-    }
-}

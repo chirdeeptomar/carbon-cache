@@ -34,7 +34,7 @@ echo ""
 oha \
   -p 2 \
   -z 1m \
-  -q 100 \
+  -q 10000 \
   -c 1000 \
   -m PUT \
   -H "Authorization: Basic $AUTH_HEADER" \

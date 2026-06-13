@@ -119,27 +119,28 @@ impl RedbPersistence {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::EvictionAlgorithm;
-    use std::collections::HashMap;
+    use crate::domain::{CacheEvictionStrategy, CacheOptions, EvictionAlgorithm};
 
     #[test]
     fn test_save_load_delete() {
         let dir = tempfile::tempdir().unwrap();
         let store = RedbPersistence::new(dir.path().join("test.redb")).unwrap();
 
+        let options = CacheOptions {
+            mem_bytes: Some(1024),
+            disk_path: None,
+            shards: None,
+            policy: EvictionAlgorithm::Lru,
+            default_ttl_ms: Some(1000),
+            max_value_bytes: Some(512),
+            backend: Some(CacheEvictionStrategy::SizeBounded),
+        };
+
         let config = CacheConfig::new(
             "test-cache",
-            Some(1024 * 1024),
+            Option::Some("Random Description".to_string()),
             None,
-            Some(4),
-            EvictionAlgorithm::TinyLfu,
-            None,
-            None,
-            Some("Test cache".to_string()),
-            Some(HashMap::from([
-                ("env".to_string(), "test".to_string()),
-                ("team".to_string(), "dev".to_string()),
-            ])),
+            options,
         );
 
         store.save_config(&config).unwrap();
@@ -147,7 +148,10 @@ mod tests {
         let loaded = store.load_all().unwrap();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].name, "test-cache");
-        assert_eq!(loaded[0].description, Some("Test cache".to_string()));
+        assert_eq!(
+            loaded[0].description,
+            Some("Random Description".to_string())
+        );
 
         let fetched = store.get_config("test-cache").unwrap();
         assert!(fetched.is_some());

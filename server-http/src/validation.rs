@@ -1,4 +1,4 @@
-use carbon::domain::{CacheConfig, CacheEvictionStrategy, EvictionAlgorithm};
+use carbon::domain::{CacheConfig, CacheEvictionStrategy, CacheOptions, EvictionAlgorithm};
 use shared_http::api::requests::CreateCacheRequest;
 
 // Constants for validation ranges
@@ -123,15 +123,15 @@ impl CacheConfigFactory {
             CacheEvictionStrategy::TimeBound => {
                 // TTL cache - all fields optional, will use defaults
                 // If mem_bytes is provided, validate it
-                if let Some(mem_bytes) = req.mem_bytes {
-                    if !(MIN_MEM_BYTES..=MAX_MEM_BYTES).contains(&mem_bytes) {
-                        return Err(ValidationError::OutOfRange {
-                            field: "mem_bytes",
-                            value: mem_bytes,
-                            min: MIN_MEM_BYTES,
-                            max: MAX_MEM_BYTES,
-                        });
-                    }
+                if let Some(mem_bytes) = req.mem_bytes
+                    && !(MIN_MEM_BYTES..=MAX_MEM_BYTES).contains(&mem_bytes)
+                {
+                    return Err(ValidationError::OutOfRange {
+                        field: "mem_bytes",
+                        value: mem_bytes,
+                        min: MIN_MEM_BYTES,
+                        max: MAX_MEM_BYTES,
+                    });
                 }
                 Ok(())
             }
@@ -198,21 +198,20 @@ impl CacheConfigFactory {
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
             return Err(ValidationError::InvalidCacheName {
-                reason:
-                    "cache name must contain only alphanumeric characters, hyphens, or underscores",
+                reason: "cache name must contain only alphanumeric characters, hyphens, or underscores",
             });
         }
 
         // Validate shards range if provided
-        if let Some(shards) = req.shards {
-            if shards > MAX_SHARDS {
-                return Err(ValidationError::OutOfRange {
-                    field: "shards",
-                    value: shards as u64,
-                    min: 1,
-                    max: MAX_SHARDS as u64,
-                });
-            }
+        if let Some(shards) = req.shards
+            && shards > MAX_SHARDS
+        {
+            return Err(ValidationError::OutOfRange {
+                field: "shards",
+                value: shards as u64,
+                min: 1,
+                max: MAX_SHARDS as u64,
+            });
         }
 
         Ok(())
@@ -238,17 +237,19 @@ impl CacheConfigFactory {
         // Default shards to 16 if not provided
         let shards = req.shards.or(Some(DEFAULT_SHARDS));
 
-        CacheConfig::with_backend(
+        CacheConfig::new(
             req.name,
-            backend,
-            policy,
-            req.mem_bytes,
-            req.disk_path,
-            shards,
-            default_ttl_ms,
-            req.max_value_bytes,
             req.description,
             req.tags,
+            CacheOptions::new(
+                req.mem_bytes,
+                req.disk_path,
+                shards,
+                policy,
+                default_ttl_ms,
+                req.max_value_bytes,
+                Some(backend),
+            ),
         )
     }
 }
