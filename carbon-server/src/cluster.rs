@@ -1,14 +1,15 @@
+use bytes::Bytes;
 use carbon::auth::{
     AuthService, MokaSessionRepository, RoleRepository, RoleService, SessionStore, UserRepository,
     UserService,
     defaults::{create_default_admin, create_default_roles},
 };
+use carbon::planes::control::operation::AdminOperations;
 use carbon::planes::data::operation::CacheOperations;
 use carbon_raft::log_store::CarbonRaftStorage;
 use carbon_raft::node::RaftCacheNode;
 use carbon_raft::types::RaftLogEntry;
 use carbon_raft::{RaftRoleRepository, RaftUserRepository};
-use bytes::Bytes;
 use shared::config::Config;
 use std::sync::Arc;
 use std::time::Duration;
@@ -44,8 +45,12 @@ pub async fn start(config: Arc<Config>) -> Result<(), Box<dyn std::error::Error>
     ));
     let session_store = Arc::new(SessionStore::new(session_repository));
 
-    let user_repo = Arc::new(RaftUserRepository { sm: raft_node.state.clone() }) as Arc<dyn UserRepository>;
-    let role_repo = Arc::new(RaftRoleRepository { sm: raft_node.state.clone() }) as Arc<dyn RoleRepository>;
+    let user_repo = Arc::new(RaftUserRepository {
+        sm: raft_node.state.clone(),
+    }) as Arc<dyn UserRepository>;
+    let role_repo = Arc::new(RaftRoleRepository {
+        sm: raft_node.state.clone(),
+    }) as Arc<dyn RoleRepository>;
 
     let auth_service = Arc::new(AuthService::new(user_repo.clone(), role_repo.clone()));
     let user_service = Arc::new(UserService::new(user_repo.clone(), role_repo.clone()));
@@ -60,8 +65,10 @@ pub async fn start(config: Arc<Config>) -> Result<(), Box<dyn std::error::Error>
 
     // ── HTTP ───────────────────────────────────────────────────────────────
     let cache_ops: Arc<dyn CacheOperations<Vec<u8>, Bytes>> = raft_node.clone();
+    let admin_ops: Arc<dyn AdminOperations<Vec<u8>, Bytes>> = raft_node.clone();
     let app_state = server_http::AppState::new(
         cache_ops,
+        admin_ops,
         Some(raft_node.clone()),
         auth_service,
         user_service,
@@ -76,18 +83,26 @@ pub async fn start(config: Arc<Config>) -> Result<(), Box<dyn std::error::Error>
     let tcp_node = raft_node.clone();
 
     let tcp_handle = tokio::spawn(async move {
-        info!("Starting TCP server on {}:{}", config_tcp.host, config_tcp.tcp.port());
-        let listener =
-            TcpListener::bind(format!("{}:{}", config_tcp.host, config_tcp.tcp.port()))
-                .await
-                .expect("Failed to bind TCP server");
-        info!("TCP server listening on {}:{}", config_tcp.host, config_tcp.tcp.port());
+        info!(
+            "Starting TCP server on {}:{}",
+            config_tcp.host,
+            config_tcp.tcp.port()
+        );
+        let listener = TcpListener::bind(format!("{}:{}", config_tcp.host, config_tcp.tcp.port()))
+            .await
+            .expect("Failed to bind TCP server");
+        info!(
+            "TCP server listening on {}:{}",
+            config_tcp.host,
+            config_tcp.tcp.port()
+        );
         loop {
             match listener.accept().await {
                 Ok((socket, addr)) => {
                     let ops: Arc<dyn CacheOperations<Vec<u8>, Bytes>> = tcp_node.clone();
+                    let raft = tcp_node.clone();
                     tokio::spawn(async move {
-                        if let Err(e) = server_tcp::process_connection(socket, ops).await {
+                        if let Err(e) = server_tcp::process_connection(socket, ops, Some(raft)).await {
                             tracing::warn!("TCP {addr} error: {e:?}");
                         }
                     });
@@ -99,14 +114,20 @@ pub async fn start(config: Arc<Config>) -> Result<(), Box<dyn std::error::Error>
 
     let config_http = Arc::clone(&config);
     let http_handle = tokio::spawn(async move {
-        info!("Starting HTTP server on {}:{}", config_http.host, config_http.http.port());
+        info!(
+            "Starting HTTP server on {}:{}",
+            config_http.host,
+            config_http.http.port()
+        );
         let listener =
             TcpListener::bind(format!("{}:{}", config_http.host, config_http.http.port()))
                 .await
                 .expect("Failed to bind HTTP server");
         info!(
             "HTTP server listening on {}://{}:{}",
-            config_http.http.http_protcol(), config_http.host, config_http.http.port()
+            config_http.http.http_protcol(),
+            config_http.host,
+            config_http.http.port()
         );
         axum::serve(listener, http_router)
             .with_graceful_shutdown(shutdown_signal())
@@ -115,7 +136,12 @@ pub async fn start(config: Arc<Config>) -> Result<(), Box<dyn std::error::Error>
     });
 
     info!("Carbon cluster server started");
-    info!("  HTTP : {}://{}:{}", config.http.http_protcol(), config.host, config.http.port());
+    info!(
+        "  HTTP : {}://{}:{}",
+        config.http.http_protcol(),
+        config.host,
+        config.http.port()
+    );
     info!("  TCP  : {}:{}", config.host, config.tcp.port());
     info!("  Raft RPC : {}", config.raft_addr);
 
@@ -168,10 +194,10 @@ async fn init_raft_auth_defaults(
         }
     }
 
-    if admin_role_id.is_empty() {
-        if let Some(r) = node.get_role_by_name("admin").await {
-            admin_role_id = r.id;
-        }
+    if admin_role_id.is_empty()
+        && let Some(r) = node.get_role_by_name("admin").await
+    {
+        admin_role_id = r.id;
     }
 
     if !node.username_exists(&admin_username).await {
@@ -189,7 +215,11 @@ async fn init_raft_auth_defaults(
 
 async fn shutdown_signal() {
     use tokio::signal;
-    let ctrl_c = async { signal::ctrl_c().await.expect("Failed to install Ctrl+C handler") };
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler")
+    };
     #[cfg(unix)]
     let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())

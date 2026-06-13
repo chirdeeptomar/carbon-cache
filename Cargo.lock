@@ -432,6 +432,7 @@ dependencies = [
  "server-http",
  "server-tcp",
  "shared",
+ "storage-engine",
  "tokio",
  "tokio-util",
  "tracing",

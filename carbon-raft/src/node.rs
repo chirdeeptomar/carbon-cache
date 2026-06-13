@@ -5,7 +5,13 @@ use std::time::Duration;
 use async_trait::async_trait;
 use bytes::Bytes;
 use carbon::domain::response::{DeleteResponse, GetResponse, PutResponse};
+use carbon::domain::response::admin::{
+    CreateCacheResponse, DescribeCacheResponse, DropCacheResponse, ListCachesResponse,
+};
+use carbon::domain::{CacheConfig, CacheInfo};
+use carbon::planes::control::operation::AdminOperations;
 use carbon::planes::data::operation::CacheOperations;
+use carbon::ports::CacheStore;
 use openraft::storage::Adaptor;
 use openraft::{Config, Raft};
 use shared::Error as SharedError;
@@ -268,6 +274,47 @@ impl CacheOperations<Vec<u8>, Bytes> for RaftCacheNode {
             Ok(RaftResponse::Deleted { existed }) => Ok(DeleteResponse::new(existed)),
             Ok(_) => Ok(DeleteResponse::new(false)),
             Err(e) => Err(SharedError::Internal(e.to_string())),
+        }
+    }
+}
+
+#[async_trait]
+impl AdminOperations<Vec<u8>, Bytes> for RaftCacheNode {
+    async fn create_cache(
+        &self,
+        config: CacheConfig,
+        _store: Arc<dyn CacheStore<Vec<u8>, Bytes>>,
+    ) -> shared::Result<CreateCacheResponse> {
+        match self.write(RaftLogEntry::CreateCache(config)).await {
+            Ok(RaftResponse::CacheCreated { created }) => Ok(CreateCacheResponse::new(
+                created,
+                if created { "Cache created".to_string() } else { "Cache already exists".to_string() },
+            )),
+            Ok(_) => Ok(CreateCacheResponse::new(false, "ok".to_string())),
+            Err(e) => Err(SharedError::Internal(e.to_string())),
+        }
+    }
+
+    async fn drop_cache(&self, name: &str) -> shared::Result<DropCacheResponse> {
+        match self.write(RaftLogEntry::DropCache { name: name.to_string() }).await {
+            Ok(RaftResponse::CacheDropped { dropped }) => Ok(DropCacheResponse::new(dropped)),
+            Ok(_) => Ok(DropCacheResponse::new(false)),
+            Err(e) => Err(SharedError::Internal(e.to_string())),
+        }
+    }
+
+    async fn list_caches(&self) -> shared::Result<ListCachesResponse> {
+        let sm = self.state.read().await;
+        let caches: Vec<CacheInfo> =
+            sm.list_configs().into_iter().map(|c| CacheInfo::from_config(&c)).collect();
+        Ok(ListCachesResponse::new(caches))
+    }
+
+    async fn describe_cache(&self, name: &str) -> shared::Result<DescribeCacheResponse> {
+        let sm = self.state.read().await;
+        match sm.describe_config(name) {
+            Some(config) => Ok(DescribeCacheResponse::new(CacheInfo::from_config(&config))),
+            None => Err(SharedError::CacheNotFound(name.to_string())),
         }
     }
 }

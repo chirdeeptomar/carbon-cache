@@ -17,6 +17,7 @@ carbon-raft.workspace = true
 
 # Core dependencies
 carbon.workspace = true
+storage-engine.workspace = true
 shared.workspace = true
 bytes.workspace = true
 tokio = { workspace = true, features = ["full"] }

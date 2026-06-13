@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use carbon::auth::{AuthService, MokaSessionRepository, RoleService, SessionStore, UserService};
 use carbon::events::CacheItemEvent;
+use carbon::planes::control::operation::AdminOperations;
 use carbon::planes::data::operation::CacheOperations;
 use carbon_raft::node::RaftCacheNode;
 use std::sync::Arc;
@@ -14,12 +15,14 @@ pub struct AppState {
     pub role_service: Arc<RoleService>,
     pub session_store: Arc<SessionStore<MokaSessionRepository>>,
     pub cache_ops: Arc<dyn CacheOperations<Vec<u8>, Bytes>>,
+    pub admin_ops: Arc<dyn AdminOperations<Vec<u8>, Bytes>>,
     pub raft_node: Option<Arc<RaftCacheNode>>,
 }
 
 impl AppState {
     pub fn new(
         cache_ops: Arc<dyn CacheOperations<Vec<u8>, Bytes>>,
+        admin_ops: Arc<dyn AdminOperations<Vec<u8>, Bytes>>,
         raft_node: Option<Arc<RaftCacheNode>>,
         auth_service: Arc<AuthService>,
         user_service: Arc<UserService>,
@@ -34,6 +37,7 @@ impl AppState {
             role_service,
             session_store,
             cache_ops,
+            admin_ops,
             raft_node,
         }
     }
