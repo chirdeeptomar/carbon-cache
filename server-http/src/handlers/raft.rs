@@ -7,7 +7,9 @@ use crate::state::AppState;
 
 /// GET /raft/metrics
 pub async fn raft_metrics(State(state): State<AppState>) -> Json<Value> {
-    let node = state.raft_node.as_ref().expect("raft_metrics requires cluster mode");
+    let Some(node) = state.raft_node.as_ref() else {
+        return Json(json!({ "mode": "standalone" }));
+    };
     let m = node.raft.metrics().borrow().clone();
     Json(json!({
         "mode": "cluster",
@@ -23,7 +25,9 @@ pub async fn raft_metrics(State(state): State<AppState>) -> Json<Value> {
 
 /// GET /cluster/nodes — returns all known nodes with liveness status.
 pub async fn cluster_nodes(State(state): State<AppState>) -> Json<Value> {
-    let node = state.raft_node.as_ref().expect("cluster_nodes requires cluster mode");
+    let Some(node) = state.raft_node.as_ref() else {
+        return Json(json!({ "mode": "standalone", "nodes": [] }));
+    };
     let leader_id = node.current_leader_id();
     let my_id = node.node_id();
     let all_nodes: Vec<_> = node.get_all_nodes().into_iter().collect();

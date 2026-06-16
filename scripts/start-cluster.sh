@@ -35,6 +35,7 @@ for i in 1 2 3; do
     SEEDS="$ALL_SEEDS"
   fi
 
+  CARBON_MODE=cluster \
   CARBON_NODE_ID=$i \
   CARBON_HTTP_PORT=$HTTP_PORT \
   CARBON_TCP_PORT=$TCP_PORT \

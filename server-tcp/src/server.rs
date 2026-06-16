@@ -41,6 +41,7 @@ pub async fn process_connection(
                 match cache_ops.get(&cache_name, &key.to_vec()).await {
                     Ok(r) if r.found => Response::Value { value: r.message },
                     Ok(_) => Response::NotFound,
+                    Err(shared::Error::NotFound) => Response::NotFound,
                     Err(shared::Error::CacheNotFound(name)) => Response::Error {
                         msg: format!("Cache not found: {name}"),
                     },
@@ -116,7 +117,8 @@ async fn do_delete(
     key: Bytes,
 ) -> Response {
     match cache_ops.delete(&cache_name, &key.to_vec()).await {
-        Ok(_) => Response::Ok,
+        Ok(r) if r.deleted => Response::Ok,
+        Ok(_) => Response::NotFound,
         Err(shared::Error::CacheNotFound(name)) => Response::Error {
             msg: format!("Cache not found: {name}"),
         },

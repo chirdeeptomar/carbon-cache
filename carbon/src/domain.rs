@@ -109,6 +109,7 @@ pub mod response {
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct CacheInfo {
+    #[serde(flatten)]
     pub config: CacheConfig,
     pub keys_estimate: u64,
     pub size_estimate: u64,
