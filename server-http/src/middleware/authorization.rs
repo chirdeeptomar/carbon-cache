@@ -54,7 +54,7 @@ fn extract_user_from_request(request: &Request) -> Result<&User, Result<Response
         None => {
             return Err(Err(
                 (StatusCode::UNAUTHORIZED, "Authentication required").into_response()
-            ))
+            ));
         }
     })
 }
@@ -66,9 +66,8 @@ pub fn permission_layer(
     State<Arc<AuthService>>,
     Request,
     Next,
-)
-    -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Response, Response>> + Send>>
-       + Clone {
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Response, Response>> + Send>>
++ Clone {
     move |State(auth_service): State<Arc<AuthService>>, request: Request, next: Next| {
         let perm = permission.clone();
         Box::pin(async move { require_permission(perm, auth_service, request, next).await })
