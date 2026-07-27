@@ -109,6 +109,7 @@ pub mod response {
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct CacheInfo {
+    #[serde(flatten)]
     pub config: CacheConfig,
     pub keys_estimate: u64,
     pub size_estimate: u64,
@@ -148,54 +149,57 @@ fn default_backend() -> CacheEvictionStrategy {
     CacheEvictionStrategy::SizeBounded
 }
 
-impl CacheConfig {
+pub struct CacheOptions {
+    pub mem_bytes: Option<u64>,
+    pub disk_path: Option<String>,
+    pub shards: Option<u8>,
+    pub policy: EvictionAlgorithm,
+    pub default_ttl_ms: Option<u64>,
+    pub max_value_bytes: Option<u64>,
+    pub backend: Option<CacheEvictionStrategy>,
+}
+
+impl CacheOptions {
     pub fn new(
-        name: impl Into<String>,
         mem_bytes: Option<u64>,
         disk_path: Option<String>,
         shards: Option<u8>,
         policy: EvictionAlgorithm,
         default_ttl_ms: Option<u64>,
         max_value_bytes: Option<u64>,
-        description: Option<String>,
-        tags: Option<HashMap<String, String>>,
+        backend: Option<CacheEvictionStrategy>,
     ) -> Self {
         Self {
-            name: name.into(),
-            backend: CacheEvictionStrategy::SizeBounded, // Default to bounded for backward compatibility
-            policy,
             mem_bytes,
             disk_path,
             shards,
+            policy,
             default_ttl_ms,
             max_value_bytes,
-            description,
-            tags,
+            backend,
         }
     }
+}
 
-    /// Create a new CacheConfig with explicit backend selection
-    pub fn with_backend(
+impl CacheConfig {
+    /// Create a new CacheConfig
+    pub fn new(
         name: impl Into<String>,
-        backend: CacheEvictionStrategy,
-        policy: EvictionAlgorithm,
-        mem_bytes: Option<u64>,
-        disk_path: Option<String>,
-        shards: Option<u8>,
-        default_ttl_ms: Option<u64>,
-        max_value_bytes: Option<u64>,
         description: Option<String>,
         tags: Option<HashMap<String, String>>,
+        options: CacheOptions,
     ) -> Self {
         Self {
             name: name.into(),
-            backend,
-            mem_bytes,
-            disk_path,
-            shards,
-            policy,
-            default_ttl_ms,
-            max_value_bytes,
+            backend: options
+                .backend
+                .unwrap_or(CacheEvictionStrategy::SizeBounded), // Default to bounded for backward compatibility
+            mem_bytes: options.mem_bytes,
+            disk_path: options.disk_path,
+            shards: options.shards,
+            policy: options.policy,
+            default_ttl_ms: options.default_ttl_ms,
+            max_value_bytes: options.max_value_bytes,
             description,
             tags,
         }

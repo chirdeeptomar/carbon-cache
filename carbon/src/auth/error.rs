@@ -42,8 +42,32 @@ pub enum AuthError {
     PasswordHashError(String),
 }
 
-impl From<sled::Error> for AuthError {
-    fn from(err: sled::Error) -> Self {
+impl From<redb::Error> for AuthError {
+    fn from(err: redb::Error) -> Self {
+        AuthError::StorageError(err.to_string())
+    }
+}
+
+impl From<redb::TransactionError> for AuthError {
+    fn from(err: redb::TransactionError) -> Self {
+        AuthError::StorageError(err.to_string())
+    }
+}
+
+impl From<redb::TableError> for AuthError {
+    fn from(err: redb::TableError) -> Self {
+        AuthError::StorageError(err.to_string())
+    }
+}
+
+impl From<redb::StorageError> for AuthError {
+    fn from(err: redb::StorageError) -> Self {
+        AuthError::StorageError(err.to_string())
+    }
+}
+
+impl From<redb::CommitError> for AuthError {
+    fn from(err: redb::CommitError) -> Self {
         AuthError::StorageError(err.to_string())
     }
 }

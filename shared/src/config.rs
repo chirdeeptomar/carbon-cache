@@ -1,3 +1,11 @@
+use tracing::warn;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ServerMode {
+    Standalone,
+    Cluster,
+}
+
 pub enum Protocol {
     Http(u16),                  // port
     Https(u16, String, String), // port, cert_path, key_path,
@@ -6,12 +14,26 @@ pub enum Protocol {
 }
 
 pub struct Config {
+    pub mode: ServerMode,
     pub host: String,
     pub http: Protocol,
     pub tcp: Protocol,
     pub data_dir: String,
     pub admin_username: String,
     pub admin_password: String,
+    pub allowed_origins: Vec<String>,
+    /// This node's unique Raft ID (u64). Defaults to 1 for single-node deployments.
+    pub node_id: u64,
+    /// Address this node binds for Raft RPC (e.g. "0.0.0.0:8091")
+    pub raft_addr: String,
+    /// Advertised HTTP address stored in Raft membership (e.g. "0.0.0.0:8080")
+    pub http_addr: String,
+    /// Advertised TCP address stored in Raft membership (e.g. "0.0.0.0:5500")
+    pub tcp_addr: String,
+    /// Seed node addresses for joining an existing cluster. Empty = bootstrap single-node cluster.
+    pub seeds: Vec<String>,
+    /// Directory for redb Raft log and snapshot files
+    pub cluster_data_dir: String,
 }
 
 impl Config {
@@ -20,6 +42,14 @@ impl Config {
     const DEFAULT_DATA_DIR: &str = "./data";
 
     pub fn from_env() -> Self {
+        let mode = match std::env::var("CARBON_MODE")
+            .unwrap_or_else(|_| "standalone".to_string())
+            .to_lowercase()
+            .as_str()
+        {
+            "cluster" => ServerMode::Cluster,
+            _ => ServerMode::Standalone,
+        };
         let host = std::env::var("CARBON_HOST").unwrap_or_else(|_| "localhost".to_string());
         let tcp_port = std::env::var("CARBON_TCP_PORT")
             .unwrap_or_else(|_| "5500".to_string())
@@ -35,14 +65,39 @@ impl Config {
             .unwrap_or(8443);
         let tls_cert_path = std::env::var("CARBON_TLS_CERT_PATH").ok();
         let tls_key_path = std::env::var("CARBON_TLS_KEY_PATH").ok();
+
+        let node_id = std::env::var("CARBON_NODE_ID")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(1);
+
+        let raft_port = std::env::var("CARBON_RAFT_PORT").unwrap_or_else(|_| "8091".to_string());
+        let raft_addr = format!("0.0.0.0:{raft_port}");
+        let http_addr = format!("0.0.0.0:{http_port}");
+        let tcp_addr = format!("0.0.0.0:{tcp_port}");
+
+        let seeds = std::env::var("CARBON_SEEDS")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let cluster_data_dir = std::env::var("CARBON_CLUSTER_DATA_DIR")
+            .unwrap_or_else(|_| format!("./data/raft/{node_id}"));
+
         Self {
+            mode,
             host,
             data_dir: std::env::var("CARBON_DATA_DIR")
                 .unwrap_or_else(|_| Self::DEFAULT_DATA_DIR.to_string()),
             admin_username: std::env::var("CARBON_ADMIN_USERNAME")
                 .unwrap_or_else(|_| Self::DEFAULT_ADMIN_USERNAME.to_string()),
-            admin_password: std::env::var("CARBON_ADMIN_PASSWORD")
-                .unwrap_or_else(|_| Self::DEFAULT_ADMIN_PASSWORD.to_string()),
+            admin_password: std::env::var("CARBON_ADMIN_PASSWORD").unwrap_or_else(|_| {
+                warn!("CARBON_ADMIN_PASSWORD not set, using default password 'admin123'");
+                warn!("⚠️  WARNING: Please change the default admin password immediately!");
+                Self::DEFAULT_ADMIN_PASSWORD.to_string()
+            }),
             http: match (&tls_cert_path, &tls_key_path) {
                 (Some(cert), Some(key)) => Protocol::Https(https_port, cert.clone(), key.clone()),
                 _ => Protocol::Http(http_port),
@@ -51,6 +106,17 @@ impl Config {
                 (Some(cert), Some(key)) => Protocol::Tcps(tcp_port, cert.clone(), key.clone()),
                 _ => Protocol::Tcp(tcp_port),
             },
+            allowed_origins: std::env::var("CARBON_ALLOWED_ORIGINS")
+                .unwrap_or_else(|_| "*".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect(),
+            node_id,
+            raft_addr,
+            http_addr,
+            tcp_addr,
+            seeds,
+            cluster_data_dir,
         }
     }
 }

@@ -1,0 +1,19 @@
+[project]
+name = "carbon-sample-python"
+version = "0.1.0"
+description = "Sample app demonstrating the Carbon Python client"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["carbon-client-python"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov"]
+
+[project.scripts]
+carbon-sample = "main:main"
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+carbon-client-python = { path = "../../clients/carbon-client-python", editable = true }

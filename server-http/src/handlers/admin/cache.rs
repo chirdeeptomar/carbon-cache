@@ -1,56 +1,112 @@
-use crate::api::requests::CreateCacheRequest;
+use shared_http::api::requests::CreateCacheRequest;
 
-use crate::api::responses::{CreateCacheResponse, DropCacheResponse, ValidationErrorResponse};
+use crate::leader_proxy::forward_to_leader;
 use crate::state::AppState;
 use crate::validation::CacheConfigFactory;
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
     Json,
+    body::Body,
+    extract::{Path, State},
+    http::{Request, StatusCode},
 };
-use carbon::planes::control::operation::AdminOperations;
 use carbon::ports::StorageFactory;
+use shared::Error as SharedError;
+use shared_http::api::responses::{
+    CreateCacheResponse, DropCacheResponse, ValidationErrorResponse,
+};
 use storage_engine::UnifiedStorageFactory;
 use tracing::info;
 
 /// POST /admin/caches
 pub async fn create_cache(
     State(state): State<AppState>,
-    Json(req): Json<CreateCacheRequest>,
+    req: Request<Body>,
 ) -> Result<Json<CreateCacheResponse>, (StatusCode, Json<ValidationErrorResponse>)> {
-    info!("CREATE_CACHE: name={}, backend={}", req.name, req.eviction);
-
-    // Validate and build config using factory
-    let config = match CacheConfigFactory::from_request(req) {
-        Ok(config) => config,
-        Err(err) => {
-            return Err((
-                StatusCode::BAD_REQUEST,
+    if let Some(raft) = &state.raft_node
+        && !raft.is_leader()
+    {
+        let resp = forward_to_leader(raft, req).await;
+        let status =
+            StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap_or_default();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+        let created = json
+            .get("created")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let message = json
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        return if status.is_success() {
+            Ok(Json(CreateCacheResponse { created, message }))
+        } else {
+            Err((
+                status,
                 Json(ValidationErrorResponse {
-                    error: err.to_string(),
+                    error: message,
                     field: None,
-                    details: Some(format!("{:?}", err)),
+                    details: None,
                 }),
             ))
-        }
-    };
+        };
+    }
 
-    // Use factory to create appropriate storage backend
-    let factory = UnifiedStorageFactory;
-    let storage = factory.create_from_config(&config);
+    let body_bytes = axum::body::to_bytes(req.into_body(), usize::MAX)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ValidationErrorResponse {
+                    error: "Failed to read request body".to_string(),
+                    field: None,
+                    details: None,
+                }),
+            )
+        })?;
+    let req_body: CreateCacheRequest = serde_json::from_slice(&body_bytes).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ValidationErrorResponse {
+                error: e.to_string(),
+                field: None,
+                details: None,
+            }),
+        )
+    })?;
 
-    // Create cache with storage (unified operation)
-    match state.cache_manager.create_cache(config, storage).await {
-        Ok(result) => Ok(Json(CreateCacheResponse {
-            created: result.created,
-            message: result.message,
+    info!(
+        "CREATE_CACHE: name={}, backend={}",
+        req_body.name, req_body.eviction
+    );
+
+    let config = CacheConfigFactory::from_request(req_body).map_err(|err| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ValidationErrorResponse {
+                error: err.to_string(),
+                field: None,
+                details: Some(format!("{:?}", err)),
+            }),
+        )
+    })?;
+
+    let store = UnifiedStorageFactory.create_from_config(&config);
+
+    match state.admin_ops.create_cache(config, store).await {
+        Ok(resp) => Ok(Json(CreateCacheResponse {
+            created: resp.created,
+            message: resp.message,
         })),
-        Err(_) => Err((
+        Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ValidationErrorResponse {
-                error: "Failed to create cache".to_string(),
+                error: format!("create_cache failed: {e}"),
                 field: None,
-                details: Some("Internal server error".to_string()),
+                details: None,
             }),
         )),
     }
@@ -60,13 +116,34 @@ pub async fn create_cache(
 pub async fn drop_cache(
     State(state): State<AppState>,
     Path(name): Path<String>,
+    req: Request<Body>,
 ) -> Result<Json<DropCacheResponse>, StatusCode> {
     info!("DROP_CACHE: name={}", name);
 
-    match state.cache_manager.drop_cache(&name).await {
-        Ok(result) => Ok(Json(DropCacheResponse {
-            dropped: result.dropped,
-        })),
+    if let Some(raft) = &state.raft_node
+        && !raft.is_leader()
+    {
+        let resp = forward_to_leader(raft, req).await;
+        let status =
+            StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap_or_default();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+        let dropped = json
+            .get("dropped")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        return if status.is_success() {
+            Ok(Json(DropCacheResponse { dropped }))
+        } else {
+            Err(status)
+        };
+    }
+
+    match state.admin_ops.drop_cache(&name).await {
+        Ok(resp) if resp.dropped => Ok(Json(DropCacheResponse { dropped: true })),
+        Ok(_) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
@@ -77,13 +154,10 @@ pub async fn list_caches(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     info!("LIST_CACHES");
 
-    match state.cache_manager.list_caches().await {
-        Ok(result) => {
-            // Convert to JSON
-            let json =
-                serde_json::to_value(result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            Ok(Json(json))
-        }
+    match state.admin_ops.list_caches().await {
+        Ok(resp) => serde_json::to_value(resp)
+            .map(Json)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
@@ -95,13 +169,11 @@ pub async fn describe_cache(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     info!("DESCRIBE_CACHE: name={}", name);
 
-    match state.cache_manager.describe_cache(&name).await {
-        Ok(result) => {
-            let json =
-                serde_json::to_value(result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            Ok(Json(json))
-        }
-        Err(shared::Error::CacheNotFound(_)) => Err(StatusCode::NOT_FOUND),
+    match state.admin_ops.describe_cache(&name).await {
+        Ok(resp) => serde_json::to_value(resp)
+            .map(Json)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR),
+        Err(SharedError::CacheNotFound(_)) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }

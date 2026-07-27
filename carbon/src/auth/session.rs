@@ -1,5 +1,6 @@
 use super::models::User;
 use chrono::DateTime;
+use rand::RngExt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Session token type - a secure random string
@@ -27,10 +28,10 @@ pub struct Session {
     pub user: User,
     pub created_at: u64,           // UTC timestamp in milliseconds
     pub created_at_utc: String,    // Human-readable UTC time (ISO 8601)
-    pub expires_at: u64,            // UTC timestamp in milliseconds
-    pub last_accessed: u64,         // UTC timestamp in milliseconds
-    pub last_accessed_utc: String,  // Human-readable UTC time (ISO 8601)
-    pub client_ip: Option<String>,  // IP address of the client
+    pub expires_at: u64,           // UTC timestamp in milliseconds
+    pub last_accessed: u64,        // UTC timestamp in milliseconds
+    pub last_accessed_utc: String, // Human-readable UTC time (ISO 8601)
+    pub client_ip: Option<String>, // IP address of the client
 }
 
 impl Session {
@@ -68,18 +69,12 @@ impl Session {
     pub fn remaining_ttl_ms(&self) -> u64 {
         let now = current_timestamp_ms();
 
-        if now >= self.expires_at {
-            0
-        } else {
-            self.expires_at - now
-        }
+        self.expires_at.saturating_sub(now)
     }
 }
 
 /// Generate a cryptographically secure random session token
 pub fn generate_session_token() -> SessionToken {
-    use rand::Rng;
-
     // Generate 32 random bytes and encode as hex (64 characters)
     let mut rng = rand::rng();
     let bytes: Vec<u8> = (0..32).map(|_| rng.random()).collect();
@@ -118,7 +113,12 @@ mod tests {
         let user = User::new("testuser".to_string(), "hash".to_string(), vec![]);
         let ttl_ms = 3600000; // 1 hour
 
-        let session = Session::new(token.clone(), user.clone(), ttl_ms, Some("127.0.0.1".to_string()));
+        let session = Session::new(
+            token.clone(),
+            user.clone(),
+            ttl_ms,
+            Some("127.0.0.1".to_string()),
+        );
 
         assert_eq!(session.token, token);
         assert_eq!(session.user.username, "testuser");

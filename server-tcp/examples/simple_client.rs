@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
+use server_tcp::{Request, Response};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use server_tcp::{Request, Response};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -20,7 +20,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Connected to server at 127.0.0.1:5500");
     println!("Note: Make sure to create a cache named 'test_cache' first via HTTP admin API");
-    println!("Example: curl -X POST http://localhost:3000/admin/caches -H 'Content-Type: application/json' -d '{{\"name\": \"test_cache\", \"max_capacity\": 1000}}'");
+    println!(
+        "Example: curl -X POST http://localhost:3000/admin/caches -H 'Content-Type: application/json' -d '{{\"name\": \"test_cache\", \"max_capacity\": 1000}}'"
+    );
 
     let cache_name = "test-timed";
 
@@ -34,23 +36,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Response: {:?}", response);
     }
 
-    // // Test PUT
-    // println!("\n=== Testing PUT ===");
-    // let put_req = Request::Put {
-    //     cache_name: cache_name.to_string(),
-    //     key: Bytes::from("hello"),
-    //     value: Bytes::from("world"),
-    // };
-    // framed.send(put_req.encode()).await?;
+    // Test PUT
+    println!("\n=== Testing PUT ===");
+    let put_req = Request::Put {
+        cache_name: cache_name.to_string(),
+        key: Bytes::from("hello"),
+        value: Bytes::from("world"),
+    };
+    framed.send(put_req.encode()).await?;
 
-    // if let Some(frame) = framed.next().await {
-    //     let response = Response::decode(frame?.freeze())?;
-    //     println!("Response: {:?}", response);
-    //     if matches!(response, Response::Error { .. }) {
-    //         println!("\n⚠️  Hint: Create cache '{}' first using HTTP admin API", cache_name);
-    //         return Ok(());
-    //     }
-    // }
+    if let Some(frame) = framed.next().await {
+        let response = Response::decode(frame?.freeze())?;
+        println!("Response: {:?}", response);
+        if matches!(response, Response::Error { .. }) {
+            println!(
+                "\n⚠️  Hint: Create cache '{}' first using HTTP admin API",
+                cache_name
+            );
+            return Ok(());
+        }
+    }
 
     // Test GET
     println!("\n=== Testing GET ===");

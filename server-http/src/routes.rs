@@ -1,16 +1,21 @@
+use std::sync::Arc;
+
 use crate::handlers;
-use crate::middleware::{auth_middleware, AuthMiddlewareState};
+use crate::middleware::{AuthMiddlewareState, auth_middleware};
 use crate::state::AppState;
+use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::{
-    middleware,
+    Router, middleware,
     routing::{delete, get, post, put},
-    Router,
 };
+use shared::config::Config;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::normalize_path::NormalizePathLayer;
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
 /// Build and configure the application router
-pub fn build_router(state: AppState) -> Router {
+pub fn build_router(state: AppState, config: &Arc<Config>) -> Router {
     // Public routes (no authentication required)
     let public_routes = Router::new()
         .route("/health", get(handlers::health_check))
@@ -23,6 +28,11 @@ pub fn build_router(state: AppState) -> Router {
     };
 
     let auth_routes = Router::new()
+        // Add route for admin UI
+        .nest_service(
+            "/admin/ui",
+            ServeDir::new("target/dx/carbon-admin-ui/release/web/public"),
+        )
         .route("/auth/login", post(handlers::login))
         .route("/auth/logout", post(handlers::logout))
         .with_state(auth_state);
@@ -69,11 +79,30 @@ pub fn build_router(state: AppState) -> Router {
         // Apply authentication middleware to all protected routes
         .layer(middleware::from_fn_with_state(auth_state, auth_middleware));
 
+    let cors_layer = CorsLayer::new()
+        .allow_methods(Any)
+        .allow_origin(
+            config
+                .allowed_origins
+                .iter()
+                .map(|o| o.parse().unwrap())
+                .collect::<Vec<_>>(),
+        )
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE]);
+
+    // Raft/cluster endpoints — read-only, public. Only respond in distributed mode.
+    let raft_routes = Router::new()
+        .route("/raft/metrics", get(handlers::raft_metrics))
+        .route("/cluster/nodes", get(handlers::cluster_nodes))
+        .with_state(state.clone());
+
     // Combine routes
     Router::new()
         .merge(public_routes)
         .merge(auth_routes)
         .merge(protected_routes)
+        .merge(raft_routes)
+        .layer(cors_layer)
         .layer(NormalizePathLayer::trim_trailing_slash())
         .layer(TraceLayer::new_for_http())
         .with_state(state)

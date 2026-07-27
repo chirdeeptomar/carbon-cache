@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod auth;
 pub mod cache;
+pub mod raft;
 
 pub use admin::cache::{create_cache, describe_cache, drop_cache, list_caches};
 pub use admin::roles::{create_role, delete_role, get_role, list_roles, update_role};
@@ -11,3 +12,4 @@ pub use auth::{login, logout, AuthHandlerState};
 pub use cache::basic::{delete_value, get_value, put_value};
 pub use cache::events::stream_events;
 pub use cache::health::health_check;
+pub use raft::{cluster_nodes, raft_metrics};

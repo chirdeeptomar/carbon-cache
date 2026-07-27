@@ -1,3 +1,3 @@
-mod sled_store;
+mod redb_store;
 
-pub use sled_store::SledPersistence;
+pub use redb_store::RedbPersistence;

@@ -1,6 +1,18 @@
+#[cfg(not(target_arch = "wasm32"))]
 use carbon::auth::Permission;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
+
+// For WASM builds, define Permission locally
+#[cfg(target_arch = "wasm32")]
+pub type Permission = String;
+
+/// Request body for login endpoint
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct CreateUserRequest {

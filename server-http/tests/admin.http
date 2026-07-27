@@ -1,29 +1,39 @@
 @hostname = localhost
-@port = 8080
+@port = 8090
 @protocol = http
 @host = {{protocol}}://{{hostname}}:{{port}}
 @contentType = application/json
-@admin = Basic YWRtaW46YWRtaW4xMjM=
+@basic = Basic YWRtaW46YWRtaW4xMjM=
+@bearer = Bearer bf1868428ad0921bfb5b328571be3cdeacc162b10688062be3b5e36b2195e2fa
 
 ### Get health status
 GET {{host}}/health
 
 ### Login user (admin)
 POST {{host}}/auth/login
-Authorization: {{admin}}
+Content-Type: {{contentType}}
+
+{
+    "username": "admin",
+    "password": "admin123"
+}
+
+### Login user (admin)
+POST {{host}}/auth/login
+Authorization: {{basic}}
 
 ### Logout user (admin)
 POST {{host}}/auth/logout
-Authorization: Bearer de37bc8f357ee8d3a338372624715e8f72d84ccedd5d726d198ee5bff7cbab00
+Authorization: {{bearer}}
 
 ### Get all roles
 GET {{host}}/admin/roles
-Authorization: {{admin}}
+Authorization: {{basic}}
 
 ### Crete a new read only user
 POST {{host}}/admin/users
 Content-Type: {{contentType}}
-Authorization: {{admin}}
+Authorization: {{basic}}
 
 {
     "username": "reader",
@@ -34,7 +44,7 @@ Authorization: {{admin}}
 ### Crete a new read-write user
 POST {{host}}/admin/users
 Content-Type: {{contentType}}
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 {
     "username": "writer",
@@ -44,24 +54,24 @@ Authorization: {{admin}}
 
 ### Get all users
 GET {{host}}/admin/users
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 ### Get user by username
 GET {{host}}/admin/users/reader
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 ### Delete user by username
 DELETE {{host}}/admin/users/reader
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 ### Get all caches
 GET {{host}}/admin/caches
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 ### Create a new cache with time to live based eviction
 POST {{host}}/admin/caches
 Content-Type: {{contentType}}
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 {
     "name": "test-timed",
@@ -74,7 +84,7 @@ Authorization: {{admin}}
 ### Create a new cache with storage size based eviction
 POST {{host}}/admin/caches
 Content-Type: {{contentType}}
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 {
     "name": "test-sized",
@@ -86,16 +96,16 @@ Authorization: {{admin}}
 
 ### Describe a cache
 GET {{host}}/admin/caches/test-sized
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 ### Drop a cache
 DELETE {{host}}/admin/caches/test-sized
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 ### Put an entry into a cache
 PUT {{host}}/cache/test-timed/1
 Content-Type: {{contentType}}
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 {
     "value": "hello world"
@@ -103,16 +113,16 @@ Authorization: {{admin}}
 
 ### Get an entry from the cache
 GET {{host}}/cache/test-timed/1
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 ### Delete an entry from the cache
 DELETE {{host}}/cache/test-timed/1
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 ### Create a new cache with time to live based eviction
 POST {{host}}/admin/caches
 Content-Type: {{contentType}}
-Authorization: {{admin}}
+Authorization: {{bearer}}
 
 {
     "name": "perf-test",

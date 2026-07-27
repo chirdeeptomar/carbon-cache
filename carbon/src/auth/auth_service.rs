@@ -101,7 +101,7 @@ mod tests {
     use super::*;
     use crate::auth::models::Role;
     use crate::auth::password::hash_password;
-    use crate::auth::sled_repository::{SledRoleRepository, SledUserRepository};
+    use crate::auth::redb_repository::{RedbRoleRepository, RedbUserRepository};
     use std::collections::HashSet;
     use tempfile::TempDir;
 
@@ -109,10 +109,10 @@ mod tests {
     async fn test_authenticate_success() {
         let temp_dir = TempDir::new().unwrap();
         let user_repo =
-            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+            Arc::new(RedbUserRepository::new(temp_dir.path().join("users.redb")).unwrap())
                 as Arc<dyn UserRepository>;
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let auth_service = AuthService::new(user_repo.clone(), role_repo);
@@ -136,10 +136,10 @@ mod tests {
     async fn test_authenticate_invalid_password() {
         let temp_dir = TempDir::new().unwrap();
         let user_repo =
-            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+            Arc::new(RedbUserRepository::new(temp_dir.path().join("users.redb")).unwrap())
                 as Arc<dyn UserRepository>;
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let auth_service = AuthService::new(user_repo.clone(), role_repo);
@@ -162,10 +162,10 @@ mod tests {
     async fn test_authorize_with_permission() {
         let temp_dir = TempDir::new().unwrap();
         let user_repo =
-            Arc::new(SledUserRepository::new(temp_dir.path().join("users.sled")).unwrap())
+            Arc::new(RedbUserRepository::new(temp_dir.path().join("users.redb")).unwrap())
                 as Arc<dyn UserRepository>;
         let role_repo =
-            Arc::new(SledRoleRepository::new(temp_dir.path().join("roles.sled")).unwrap())
+            Arc::new(RedbRoleRepository::new(temp_dir.path().join("roles.redb")).unwrap())
                 as Arc<dyn RoleRepository>;
 
         let auth_service = AuthService::new(user_repo, role_repo.clone());
