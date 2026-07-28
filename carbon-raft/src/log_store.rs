@@ -61,9 +61,11 @@ impl CarbonRaftStorage {
     }
 }
 
-fn io_err(e: impl std::fmt::Display) -> StorageIOError<NodeId> {
+fn io_err(e: impl std::fmt::Display) -> StorageError<NodeId> {
     let err = std::io::Error::other(e.to_string());
-    StorageIOError::read(&err)
+    StorageError::IO {
+        source: StorageIOError::read(&err),
+    }
 }
 
 impl RaftLogReader<TypeConfig> for CarbonRaftStorage {
@@ -74,19 +76,20 @@ impl RaftLogReader<TypeConfig> for CarbonRaftStorage {
         let read_txn = self
             .db
             .begin_read()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         let table = read_txn
             .open_table(LOG_TABLE)
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
-        let entries = table
+            .map_err(io_err)?;
+        let mut entries = Vec::new();
+        for r in table
             .range(range)
-            .map_err(|e| StorageError::IO { source: io_err(e) })?
-            .map(|r| {
-                let (_, v) = r.expect("redb range error");
-                serde_json::from_slice::<Entry<TypeConfig>>(v.value())
-                    .expect("corrupt raft log entry")
-            })
-            .collect();
+            .map_err(io_err)?
+        {
+            let (_, v) = r.map_err(io_err)?;
+            let entry = serde_json::from_slice::<Entry<TypeConfig>>(v.value())
+                .map_err(io_err)?;
+            entries.push(entry);
+        }
         Ok(entries)
     }
 }
@@ -94,7 +97,7 @@ impl RaftLogReader<TypeConfig> for CarbonRaftStorage {
 impl RaftSnapshotBuilder<TypeConfig> for CarbonRaftStorage {
     async fn build_snapshot(&mut self) -> Result<Snapshot<TypeConfig>, StorageError<NodeId>> {
         let sm = self.sm.read().await;
-        let data = serde_json::to_vec(&*sm).map_err(|e| StorageError::IO { source: io_err(e) })?;
+        let data = serde_json::to_vec(&*sm).map_err(io_err)?;
 
         let last_applied = sm.last_applied_log;
         let last_membership = sm.last_membership.clone();
@@ -138,19 +141,19 @@ impl RaftStorage<TypeConfig> for CarbonRaftStorage {
         let write_txn = self
             .db
             .begin_write()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         {
             let mut table = write_txn
                 .open_table(META_TABLE)
-                .map_err(|e| StorageError::IO { source: io_err(e) })?;
-            let bytes = serde_json::to_vec(vote).expect("serialize vote");
+                .map_err(io_err)?;
+            let bytes = serde_json::to_vec(vote).map_err(io_err)?;
             table
                 .insert(KEY_VOTE, bytes.as_slice())
-                .map_err(|e| StorageError::IO { source: io_err(e) })?;
+                .map_err(io_err)?;
         }
         write_txn
             .commit()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         Ok(())
     }
 
@@ -158,16 +161,17 @@ impl RaftStorage<TypeConfig> for CarbonRaftStorage {
         let read_txn = self
             .db
             .begin_read()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         let table = read_txn
             .open_table(META_TABLE)
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         match table
             .get(KEY_VOTE)
-            .map_err(|e| StorageError::IO { source: io_err(e) })?
+            .map_err(io_err)?
         {
             None => Ok(None),
-            Some(v) => Ok(serde_json::from_slice(v.value()).expect("corrupt vote")),
+            Some(v) => Ok(serde_json::from_slice(v.value())
+                .map_err(io_err)?),
         }
     }
 
@@ -178,19 +182,19 @@ impl RaftStorage<TypeConfig> for CarbonRaftStorage {
         let write_txn = self
             .db
             .begin_write()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         {
             let mut table = write_txn
                 .open_table(META_TABLE)
-                .map_err(|e| StorageError::IO { source: io_err(e) })?;
-            let bytes = serde_json::to_vec(&committed).expect("serialize committed");
+                .map_err(io_err)?;
+            let bytes = serde_json::to_vec(&committed).map_err(io_err)?;
             table
                 .insert(KEY_COMMITTED, bytes.as_slice())
-                .map_err(|e| StorageError::IO { source: io_err(e) })?;
+                .map_err(io_err)?;
         }
         write_txn
             .commit()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         Ok(())
     }
 
@@ -198,16 +202,17 @@ impl RaftStorage<TypeConfig> for CarbonRaftStorage {
         let read_txn = self
             .db
             .begin_read()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         let table = read_txn
             .open_table(META_TABLE)
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         match table
             .get(KEY_COMMITTED)
-            .map_err(|e| StorageError::IO { source: io_err(e) })?
+            .map_err(io_err)?
         {
             None => Ok(None),
-            Some(v) => Ok(serde_json::from_slice(v.value()).expect("corrupt committed")),
+            Some(v) => Ok(serde_json::from_slice(v.value())
+                .map_err(io_err)?),
         }
     }
 
@@ -215,28 +220,34 @@ impl RaftStorage<TypeConfig> for CarbonRaftStorage {
         let read_txn = self
             .db
             .begin_read()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         let table = read_txn
             .open_table(LOG_TABLE)
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
 
-        let last = table
+        let last = match table
             .last()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?
-            .map(|(_, v)| {
-                let entry: Entry<TypeConfig> =
-                    serde_json::from_slice(v.value()).expect("corrupt log entry");
-                entry.log_id
-            });
+            .map_err(io_err)?
+        {
+            Some((_, v)) => {
+                let entry: Entry<TypeConfig> = serde_json::from_slice(v.value())
+                    .map_err(io_err)?;
+                Some(entry.log_id)
+            }
+            None => None,
+        };
 
-        let first = table
+        let first = match table
             .first()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?
-            .map(|(_, v)| {
-                let entry: Entry<TypeConfig> =
-                    serde_json::from_slice(v.value()).expect("corrupt log entry");
-                entry.log_id
-            });
+            .map_err(io_err)?
+        {
+            Some((_, v)) => {
+                let entry: Entry<TypeConfig> = serde_json::from_slice(v.value())
+                    .map_err(io_err)?;
+                Some(entry.log_id)
+            }
+            None => None,
+        };
 
         let purged = match first {
             None => None,
@@ -267,21 +278,22 @@ impl RaftStorage<TypeConfig> for CarbonRaftStorage {
         let write_txn = self
             .db
             .begin_write()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         {
             let mut table = write_txn
                 .open_table(LOG_TABLE)
-                .map_err(|e| StorageError::IO { source: io_err(e) })?;
+                .map_err(io_err)?;
             for entry in &entries {
-                let bytes = serde_json::to_vec(entry).expect("serialize log entry");
+                let bytes = serde_json::to_vec(entry)
+                    .map_err(io_err)?;
                 table
                     .insert(entry.log_id.index, bytes.as_slice())
-                    .map_err(|e| StorageError::IO { source: io_err(e) })?;
+                    .map_err(io_err)?;
             }
         }
         write_txn
             .commit()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         Ok(())
     }
 
@@ -292,25 +304,28 @@ impl RaftStorage<TypeConfig> for CarbonRaftStorage {
         let write_txn = self
             .db
             .begin_write()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         {
             let mut table = write_txn
                 .open_table(LOG_TABLE)
-                .map_err(|e| StorageError::IO { source: io_err(e) })?;
-            let to_delete: Vec<u64> = table
+                .map_err(io_err)?;
+            let mut to_delete: Vec<u64> = Vec::new();
+            for r in table
                 .range(log_id.index..)
-                .map_err(|e| StorageError::IO { source: io_err(e) })?
-                .map(|r| r.expect("redb range error").0.value())
-                .collect();
+                .map_err(io_err)?
+            {
+                let (k, _) = r.map_err(io_err)?;
+                to_delete.push(k.value());
+            }
             for idx in to_delete {
                 table
                     .remove(idx)
-                    .map_err(|e| StorageError::IO { source: io_err(e) })?;
+                    .map_err(io_err)?;
             }
         }
         write_txn
             .commit()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         Ok(())
     }
 
@@ -318,25 +333,28 @@ impl RaftStorage<TypeConfig> for CarbonRaftStorage {
         let write_txn = self
             .db
             .begin_write()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         {
             let mut table = write_txn
                 .open_table(LOG_TABLE)
-                .map_err(|e| StorageError::IO { source: io_err(e) })?;
-            let to_delete: Vec<u64> = table
+                .map_err(io_err)?;
+            let mut to_delete: Vec<u64> = Vec::new();
+            for r in table
                 .range(..=log_id.index)
-                .map_err(|e| StorageError::IO { source: io_err(e) })?
-                .map(|r| r.expect("redb range error").0.value())
-                .collect();
+                .map_err(io_err)?
+            {
+                let (k, _) = r.map_err(io_err)?;
+                to_delete.push(k.value());
+            }
             for idx in to_delete {
                 table
                     .remove(idx)
-                    .map_err(|e| StorageError::IO { source: io_err(e) })?;
+                    .map_err(io_err)?;
             }
         }
         write_txn
             .commit()
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         Ok(())
     }
 
@@ -476,7 +494,7 @@ impl RaftStorage<TypeConfig> for CarbonRaftStorage {
         snapshot: Box<Cursor<Vec<u8>>>,
     ) -> Result<(), StorageError<NodeId>> {
         let new_sm: CacheStateMachine = serde_json::from_slice(snapshot.get_ref())
-            .map_err(|e| StorageError::IO { source: io_err(e) })?;
+            .map_err(io_err)?;
         let mut sm = self.sm.write().await;
         *sm = new_sm;
         self.current_snapshot = Some(Snapshot {

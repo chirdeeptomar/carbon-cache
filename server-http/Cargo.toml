@@ -32,3 +32,4 @@ storage-engine.workspace = true
 dhat.workspace = true
 bytes.workspace = true
 reqwest.workspace = true
+thiserror.workspace = true

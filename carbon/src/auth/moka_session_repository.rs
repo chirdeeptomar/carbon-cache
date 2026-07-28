@@ -85,12 +85,12 @@ impl SessionRepository for MokaSessionRepository {
             .sessions
             .get(token)
             .await
-            .ok_or(shared::Error::NotFound)?;
+            .ok_or(shared::Error::KeyNotFound)?;
 
         // Check if expired
         if session.is_expired() {
             self.sessions.invalidate(token).await;
-            return Err(shared::Error::NotFound);
+            return Err(shared::Error::KeyNotFound);
         }
 
         // Update last_accessed timestamp
@@ -149,8 +149,9 @@ impl SessionRepository for MokaSessionRepository {
                 {
                     valid_tokens.push(token.clone());
 
-                    if most_recent.is_none()
-                        || session.last_accessed > most_recent.as_ref().unwrap().last_accessed
+                    if most_recent
+                        .as_ref()
+                        .is_none_or(|m| session.last_accessed > m.last_accessed)
                     {
                         most_recent = Some(session);
                     }
@@ -236,8 +237,9 @@ impl SessionRepository for MokaSessionRepository {
             for token in token_list.iter() {
                 if let Some(session) = self.sessions.get(token).await
                     && !session.is_expired()
-                    && (most_recent.is_none()
-                        || session.last_accessed > most_recent.as_ref().unwrap().last_accessed)
+                    && most_recent
+                        .as_ref()
+                        .is_none_or(|m| session.last_accessed > m.last_accessed)
                 {
                     most_recent = Some(session);
                 }

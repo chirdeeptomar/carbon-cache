@@ -29,14 +29,13 @@ impl CarbonRaftNetwork {
     /// Send a message and return the response, reconnecting if necessary.
     async fn send(&self, msg: &RaftRpcMessage) -> Result<RaftRpcResponse, String> {
         let mut guard = self.conn.lock().await;
-        let stream = match guard.as_mut() {
+        let stream = match &mut *guard {
             Some(s) => s,
-            None => {
+            slot @ None => {
                 let s = TcpStream::connect(&self.target_addr)
                     .await
                     .map_err(|e| format!("connect to {}: {}", self.target_addr, e))?;
-                *guard = Some(s);
-                guard.as_mut().unwrap()
+                slot.insert(s)
             }
         };
 

@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use carbon::domain::response::{DeleteResponse, GetResponse, PutResponse};
 use carbon::domain::response::admin::{
     CreateCacheResponse, DescribeCacheResponse, DropCacheResponse, ListCachesResponse,
 };
+use carbon::domain::response::{DeleteResponse, GetResponse, PutResponse};
 use carbon::domain::{CacheConfig, CacheInfo};
 use carbon::planes::control::operation::AdminOperations;
 use carbon::planes::data::operation::CacheOperations;
@@ -76,10 +76,20 @@ impl RaftCacheNode {
         let (log_store, sm_store) = Adaptor::new(storage);
 
         let raft = Arc::new(
-            Raft::new(node_id, config, CarbonRaftNetworkFactory, log_store, sm_store).await?,
+            Raft::new(
+                node_id,
+                config,
+                CarbonRaftNetworkFactory,
+                log_store,
+                sm_store,
+            )
+            .await?,
         );
 
-        let node = Arc::new(RaftCacheNode { raft: raft.clone(), state });
+        let node = Arc::new(RaftCacheNode {
+            raft: raft.clone(),
+            state,
+        });
 
         let raft_for_listener = raft.clone();
         let addr = raft_addr.clone();
@@ -89,7 +99,15 @@ impl RaftCacheNode {
 
         let raft_for_join = raft.clone();
         tokio::spawn(async move {
-            bootstrap(raft_for_join, node_id, raft_addr, http_addr, tcp_addr, seeds).await;
+            bootstrap(
+                raft_for_join,
+                node_id,
+                raft_addr,
+                http_addr,
+                tcp_addr,
+                seeds,
+            )
+            .await;
         });
 
         Ok(node)
@@ -201,7 +219,11 @@ impl RaftCacheNode {
     }
 
     pub async fn get_user_by_username(&self, username: &str) -> Option<User> {
-        self.state.read().await.get_user_by_username(username).cloned()
+        self.state
+            .read()
+            .await
+            .get_user_by_username(username)
+            .cloned()
     }
 
     pub async fn username_exists(&self, username: &str) -> bool {
@@ -246,9 +268,10 @@ impl CacheOperations<Vec<u8>, Bytes> for RaftCacheNode {
             value: value.to_vec(),
         };
         match self.write(entry).await {
-            Ok(RaftResponse::Written { created }) => {
-                Ok(PutResponse::new(created, if created { "inserted" } else { "updated" }))
-            }
+            Ok(RaftResponse::Written { created }) => Ok(PutResponse::new(
+                created,
+                if created { "inserted" } else { "updated" },
+            )),
             Ok(_) => Ok(PutResponse::new(false, "ok")),
             Err(e) => Err(SharedError::Internal(e.to_string())),
         }
@@ -261,7 +284,7 @@ impl CacheOperations<Vec<u8>, Bytes> for RaftCacheNode {
         }
         match sm.get(cache_name, key) {
             Some(v) => Ok(GetResponse::new(true, Bytes::from(v))),
-            None => Err(SharedError::NotFound),
+            None => Err(SharedError::KeyNotFound),
         }
     }
 
@@ -288,7 +311,11 @@ impl AdminOperations<Vec<u8>, Bytes> for RaftCacheNode {
         match self.write(RaftLogEntry::CreateCache(config)).await {
             Ok(RaftResponse::CacheCreated { created }) => Ok(CreateCacheResponse::new(
                 created,
-                if created { "Cache created".to_string() } else { "Cache already exists".to_string() },
+                if created {
+                    "Cache created".to_string()
+                } else {
+                    "Cache already exists".to_string()
+                },
             )),
             Ok(_) => Ok(CreateCacheResponse::new(false, "ok".to_string())),
             Err(e) => Err(SharedError::Internal(e.to_string())),
@@ -296,7 +323,12 @@ impl AdminOperations<Vec<u8>, Bytes> for RaftCacheNode {
     }
 
     async fn drop_cache(&self, name: &str) -> shared::Result<DropCacheResponse> {
-        match self.write(RaftLogEntry::DropCache { name: name.to_string() }).await {
+        match self
+            .write(RaftLogEntry::DropCache {
+                name: name.to_string(),
+            })
+            .await
+        {
             Ok(RaftResponse::CacheDropped { dropped }) => Ok(DropCacheResponse::new(dropped)),
             Ok(_) => Ok(DropCacheResponse::new(false)),
             Err(e) => Err(SharedError::Internal(e.to_string())),
@@ -305,8 +337,11 @@ impl AdminOperations<Vec<u8>, Bytes> for RaftCacheNode {
 
     async fn list_caches(&self) -> shared::Result<ListCachesResponse> {
         let sm = self.state.read().await;
-        let caches: Vec<CacheInfo> =
-            sm.list_configs().into_iter().map(|c| CacheInfo::from_config(&c)).collect();
+        let caches: Vec<CacheInfo> = sm
+            .list_configs()
+            .into_iter()
+            .map(|c| CacheInfo::from_config(&c))
+            .collect();
         Ok(ListCachesResponse::new(caches))
     }
 
@@ -342,9 +377,19 @@ async fn bootstrap(
     if seeds.is_empty() {
         info!("No seeds — initializing single-node cluster");
         let mut members = BTreeMap::new();
-        members.insert(node_id, CarbonNode { raft_addr, http_addr, tcp_addr });
-        match raft.initialize(members) .await {
-            Ok(_) => info!(node_id = node_id, "cluster membership changed: single-node cluster initialized"),
+        members.insert(
+            node_id,
+            CarbonNode {
+                raft_addr,
+                http_addr,
+                tcp_addr,
+            },
+        );
+        match raft.initialize(members).await {
+            Ok(_) => info!(
+                node_id = node_id,
+                "cluster membership changed: single-node cluster initialized"
+            ),
             Err(e) => warn!("initialize failed (already initialized?): {e}"),
         }
         return;
@@ -399,7 +444,9 @@ fn send_join(
             http_addr: http_addr.clone(),
             tcp_addr: tcp_addr.clone(),
         };
-        write_frame(&mut stream, &msg).await.map_err(|e| e.to_string())?;
+        write_frame(&mut stream, &msg)
+            .await
+            .map_err(|e| e.to_string())?;
 
         match read_frame(&mut stream).await.map_err(|e| e.to_string())? {
             RaftRpcResponse::Joined => Ok(()),
@@ -452,11 +499,15 @@ async fn dispatch(raft: &CarbonRaft, msg: RaftRpcMessage) -> RaftRpcResponse {
     match msg {
         RaftRpcMessage::AppendEntries(req) => match raft.append_entries(req).await {
             Ok(r) => RaftRpcResponse::AppendEntries(r),
-            Err(e) => RaftRpcResponse::Error { message: e.to_string() },
+            Err(e) => RaftRpcResponse::Error {
+                message: e.to_string(),
+            },
         },
         RaftRpcMessage::Vote(req) => match raft.vote(req).await {
             Ok(r) => RaftRpcResponse::Vote(r),
-            Err(e) => RaftRpcResponse::Error { message: e.to_string() },
+            Err(e) => RaftRpcResponse::Error {
+                message: e.to_string(),
+            },
         },
         RaftRpcMessage::InstallSnapshot(req) => {
             use openraft::Snapshot;
@@ -466,15 +517,22 @@ async fn dispatch(raft: &CarbonRaft, msg: RaftRpcMessage) -> RaftRpcResponse {
                 snapshot: Box::new(Cursor::new(req.data)),
             };
             match raft.install_full_snapshot(req.vote, snapshot).await {
-                Ok(r) => RaftRpcResponse::InstallSnapshot(openraft::raft::InstallSnapshotResponse {
-                    vote: r.vote,
-                }),
-                Err(e) => RaftRpcResponse::Error { message: e.to_string() },
+                Ok(r) => {
+                    RaftRpcResponse::InstallSnapshot(openraft::raft::InstallSnapshotResponse {
+                        vote: r.vote,
+                    })
+                }
+                Err(e) => RaftRpcResponse::Error {
+                    message: e.to_string(),
+                },
             }
         }
-        RaftRpcMessage::Join { node_id, raft_addr, http_addr, tcp_addr } => {
-            handle_join(raft, node_id, raft_addr, http_addr, tcp_addr).await
-        }
+        RaftRpcMessage::Join {
+            node_id,
+            raft_addr,
+            http_addr,
+            tcp_addr,
+        } => handle_join(raft, node_id, raft_addr, http_addr, tcp_addr).await,
         RaftRpcMessage::Leave { node_id } => handle_leave(raft, node_id).await,
     }
 }
@@ -509,15 +567,26 @@ async fn handle_join(
         }
     }
 
-    let node = CarbonNode { raft_addr, http_addr, tcp_addr };
+    let node = CarbonNode {
+        raft_addr,
+        http_addr,
+        tcp_addr,
+    };
     if let Err(e) = raft.add_learner(node_id, node, true).await {
-        return RaftRpcResponse::Error { message: format!("add_learner: {e}") };
+        return RaftRpcResponse::Error {
+            message: format!("add_learner: {e}"),
+        };
     }
 
     // Re-read membership after add_learner commits and retry change_membership
     // if the cluster is mid-change (two joins arriving close together).
     for attempt in 1u32..=5 {
-        let current: Vec<NodeId> = raft.metrics().borrow().membership_config.voter_ids().collect();
+        let current: Vec<NodeId> = raft
+            .metrics()
+            .borrow()
+            .membership_config
+            .voter_ids()
+            .collect();
         let mut new_members = current;
         if !new_members.contains(&node_id) {
             new_members.push(node_id);
@@ -537,11 +606,15 @@ async fn handle_join(
                     tokio::time::sleep(Duration::from_millis(200 * attempt as u64)).await;
                     continue;
                 }
-                return RaftRpcResponse::Error { message: format!("change_membership: {e}") };
+                return RaftRpcResponse::Error {
+                    message: format!("change_membership: {e}"),
+                };
             }
         }
     }
-    RaftRpcResponse::Error { message: "change_membership: too many retries".into() }
+    RaftRpcResponse::Error {
+        message: "change_membership: too many retries".into(),
+    }
 }
 
 /// Handle an inbound `Leave` request.
@@ -577,7 +650,9 @@ async fn handle_leave(raft: &CarbonRaft, node_id: NodeId) -> RaftRpcResponse {
             );
             RaftRpcResponse::Left
         }
-        Err(e) => RaftRpcResponse::Error { message: format!("change_membership: {e}") },
+        Err(e) => RaftRpcResponse::Error {
+            message: format!("change_membership: {e}"),
+        },
     }
 }
 
@@ -610,7 +685,7 @@ async fn write_frame<T: serde::Serialize>(
     stream: &mut TcpStream,
     msg: &T,
 ) -> Result<(), std::io::Error> {
-    let payload = serde_json::to_vec(msg).expect("serialize");
+    let payload = serde_json::to_vec(msg).map_err(std::io::Error::other)?;
     let len = payload.len() as u32;
     stream.write_all(&len.to_be_bytes()).await?;
     stream.write_all(&payload).await?;

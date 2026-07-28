@@ -24,6 +24,13 @@ fn internal(msg: impl ToString) -> (StatusCode, Json<ErrorResponse>) {
     (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse::new(msg.to_string())))
 }
 
+fn requires_cluster_mode() -> (StatusCode, Json<ErrorResponse>) {
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(ErrorResponse::new("this endpoint requires cluster mode")),
+    )
+}
+
 /// POST /admin/roles
 pub async fn create_role(
     State(state): State<AppState>,
@@ -38,7 +45,7 @@ pub async fn create_role(
 
     info!("CREATE_ROLE: name={}, requested_by={}", req.name, current_user.username);
 
-    let raft = state.raft_node.as_ref().expect("admin/roles routes require cluster mode");
+    let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     if raft.get_role_by_name(&req.name).await.is_some() {
         return Err(auth_err(AuthError::RoleAlreadyExists));
     }
@@ -69,7 +76,7 @@ pub async fn list_roles(
     let roles: Vec<RoleResponse> = state
         .raft_node
         .as_ref()
-        .expect("list_roles requires cluster mode")
+        .ok_or_else(requires_cluster_mode)?
         .list_roles()
         .await
         .into_iter()
@@ -93,7 +100,7 @@ pub async fn get_role(
     match state
         .raft_node
         .as_ref()
-        .expect("get_role requires cluster mode")
+        .ok_or_else(requires_cluster_mode)?
         .get_role_by_name(&name)
         .await
     {
@@ -117,7 +124,7 @@ pub async fn update_role(
 
     info!("UPDATE_ROLE: name={}, requested_by={}", name, current_user.username);
 
-    let raft = state.raft_node.as_ref().expect("admin/roles routes require cluster mode");
+    let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     let mut role = raft
         .get_role_by_name(&name)
         .await
@@ -152,7 +159,7 @@ pub async fn delete_role(
 
     info!("DELETE_ROLE: name={}, requested_by={}", name, current_user.username);
 
-    let raft = state.raft_node.as_ref().expect("admin/roles routes require cluster mode");
+    let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     let role = raft
         .get_role_by_name(&name)
         .await

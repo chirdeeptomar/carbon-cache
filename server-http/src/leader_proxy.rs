@@ -12,6 +12,16 @@ use tracing::info;
 static CLIENT: std::sync::LazyLock<reqwest::Client> =
     std::sync::LazyLock::new(reqwest::Client::new);
 
+/// Build a response, falling back to a bare 500 if the builder fails
+/// (only possible when copying malformed header values from upstream).
+fn build_or_fallback(builder: axum::http::response::Builder, body: Body) -> Response<Body> {
+    builder.body(body).unwrap_or_else(|_| {
+        let mut r = Response::new(Body::empty());
+        *r.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+        r
+    })
+}
+
 /// Forward the given request to the leader. Returns the leader's response
 /// as an axum `Response<Body>`, or a 503 if no leader is known.
 pub async fn forward_to_leader(
@@ -21,10 +31,10 @@ pub async fn forward_to_leader(
     let leader = match node.get_leader_node() {
         Some(n) => n,
         None => {
-            return Response::builder()
-                .status(StatusCode::SERVICE_UNAVAILABLE)
-                .body(Body::from("no leader elected"))
-                .unwrap();
+            return build_or_fallback(
+                Response::builder().status(StatusCode::SERVICE_UNAVAILABLE),
+                Body::from("no leader elected"),
+            );
         }
     };
 
@@ -48,10 +58,10 @@ pub async fn forward_to_leader(
     let body_bytes = match axum::body::to_bytes(req.into_body(), usize::MAX).await {
         Ok(b) => b,
         Err(_) => {
-            return Response::builder()
-                .status(StatusCode::BAD_GATEWAY)
-                .body(Body::from("failed to read request body"))
-                .unwrap();
+            return build_or_fallback(
+                Response::builder().status(StatusCode::BAD_GATEWAY),
+                Body::from("failed to read request body"),
+            );
         }
     };
 
@@ -70,11 +80,11 @@ pub async fn forward_to_leader(
                 response_builder = response_builder.header(name, value);
             }
             let body = resp.bytes().await.unwrap_or_default();
-            response_builder.body(Body::from(body)).unwrap()
+            build_or_fallback(response_builder, Body::from(body))
         }
-        Err(e) => Response::builder()
-            .status(StatusCode::BAD_GATEWAY)
-            .body(Body::from(format!("leader unreachable: {e}")))
-            .unwrap(),
+        Err(e) => build_or_fallback(
+            Response::builder().status(StatusCode::BAD_GATEWAY),
+            Body::from(format!("leader unreachable: {e}")),
+        ),
     }
 }

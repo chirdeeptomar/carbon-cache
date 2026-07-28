@@ -30,6 +30,13 @@ fn internal(msg: impl ToString) -> (StatusCode, Json<ErrorResponse>) {
     (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse::new(msg.to_string())))
 }
 
+fn requires_cluster_mode() -> (StatusCode, Json<ErrorResponse>) {
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(ErrorResponse::new("this endpoint requires cluster mode")),
+    )
+}
+
 /// POST /admin/users
 pub async fn create_user(
     State(state): State<AppState>,
@@ -44,7 +51,7 @@ pub async fn create_user(
 
     info!("CREATE_USER: username={}, requested_by={}", req.username, current_user.username);
 
-    let raft = state.raft_node.as_ref().expect("admin/users routes require cluster mode");
+    let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     if raft.username_exists(&req.username).await {
         return Err(auth_err(AuthError::UserAlreadyExists));
     }
@@ -80,7 +87,7 @@ pub async fn list_users(
     let users: Vec<UserResponse> = state
         .raft_node
         .as_ref()
-        .expect("list_users requires cluster mode")
+        .ok_or_else(requires_cluster_mode)?
         .list_users()
         .await
         .into_iter()
@@ -104,7 +111,7 @@ pub async fn get_user(
     match state
         .raft_node
         .as_ref()
-        .expect("get_user requires cluster mode")
+        .ok_or_else(requires_cluster_mode)?
         .get_user_by_username(&username)
         .await
     {
@@ -128,7 +135,7 @@ pub async fn assign_roles(
 
     info!("ASSIGN_ROLES: username={}, requested_by={}", username, current_user.username);
 
-    let raft = state.raft_node.as_ref().expect("admin/users routes require cluster mode");
+    let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     let mut user = raft
         .get_user_by_username(&username)
         .await
@@ -170,7 +177,7 @@ pub async fn change_password(
 
     info!("CHANGE_PASSWORD: username={}, requested_by={}", username, current_user.username);
 
-    let raft = state.raft_node.as_ref().expect("admin/users routes require cluster mode");
+    let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     let mut user = raft
         .get_user_by_username(&username)
         .await
@@ -208,7 +215,7 @@ pub async fn reset_password(
 
     info!("RESET_PASSWORD: username={}, requested_by={}", username, current_user.username);
 
-    let raft = state.raft_node.as_ref().expect("admin/users routes require cluster mode");
+    let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     let mut user = raft
         .get_user_by_username(&username)
         .await
@@ -241,7 +248,7 @@ pub async fn delete_user(
 
     info!("DELETE_USER: username={}, requested_by={}", username, current_user.username);
 
-    let raft = state.raft_node.as_ref().expect("admin/users routes require cluster mode");
+    let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     let user = raft
         .get_user_by_username(&username)
         .await

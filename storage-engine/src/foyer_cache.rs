@@ -60,7 +60,7 @@ where
                 let value = entry.value();
                 Ok(GetResponse::new(true, value.clone()))
             }
-            None => Err(Error::NotFound),
+            None => Err(Error::KeyNotFound),
         }
     }
 
@@ -124,7 +124,7 @@ mod tests {
         // Try to get deleted value
         let result = cache.get(&key).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), Error::NotFound));
+        assert!(matches!(result.unwrap_err(), Error::KeyNotFound));
     }
 
     #[tokio::test]
@@ -135,7 +135,7 @@ mod tests {
         // Try to get a key that doesn't exist
         let result = cache.get(&"nonexistent").await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), Error::NotFound));
+        assert!(matches!(result.unwrap_err(), Error::KeyNotFound));
     }
 
     #[tokio::test]

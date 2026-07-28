@@ -1,13 +1,15 @@
 use axum::{
     extract::{ConnectInfo, Request, State},
-    http::{header, StatusCode},
+    http::header,
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use carbon::auth::{AuthService, MokaSessionRepository, SessionStore, User};
 use std::net::SocketAddr;
 use std::sync::Arc;
+
+use super::error::AuthError;
 
 /// Shared state for authentication middleware
 #[derive(Clone)]
@@ -21,24 +23,13 @@ pub async fn auth_middleware(
     State(state): State<AuthMiddlewareState>,
     mut request: Request,
     next: Next,
-) -> Result<Response, Response> {
+) -> Result<Response, AuthError> {
     // Get Authorization header
     let auth_header = request
         .headers()
         .get(header::AUTHORIZATION)
-        .and_then(|h| h.to_str().ok());
-
-    let auth_header = match auth_header {
-        Some(h) => h,
-        None => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                [(header::WWW_AUTHENTICATE, "Basic realm=\"Carbon Cache\"")],
-                "Missing Authorization header",
-            )
-                .into_response())
-        }
-    };
+        .and_then(|h| h.to_str().ok())
+        .ok_or(AuthError::MissingHeader)?;
 
     // Try Bearer token first (fast path)
     if let Some(token) = extract_bearer_token(auth_header) {
@@ -48,30 +39,13 @@ pub async fn auth_middleware(
                 request.extensions_mut().insert(user);
                 return Ok(next.run(request).await);
             }
-            Err(_) => {
-                // Invalid or expired session
-                return Err((
-                    StatusCode::UNAUTHORIZED,
-                    [(header::WWW_AUTHENTICATE, "Bearer realm=\"Carbon Cache\"")],
-                    "Invalid or expired session token",
-                )
-                    .into_response());
-            }
+            Err(_) => return Err(AuthError::InvalidSession),
         }
     }
 
     // Fallback to Basic Auth (slow path)
-    let (username, password) = match extract_basic_auth(auth_header) {
-        Some(creds) => creds,
-        None => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                [(header::WWW_AUTHENTICATE, "Basic realm=\"Carbon Cache\"")],
-                "Invalid Authorization header format",
-            )
-                .into_response())
-        }
-    };
+    let (username, password) =
+        extract_basic_auth(auth_header).ok_or(AuthError::MalformedHeader)?;
 
     // Extract client IP address from headers or connection info
     let client_ip = extract_client_ip(&request);
@@ -92,28 +66,22 @@ pub async fn auth_middleware(
 
         // Return response with session token and reuse indicator
         let mut response = next.run(request).await;
+        if let Ok(value) = session.token.parse() {
+            response.headers_mut().insert("X-Session-Token", value);
+        }
         response
             .headers_mut()
-            .insert("X-Session-Token", session.token.parse().unwrap());
-        response
-            .headers_mut()
-            .insert("X-Session-Reused", "true".parse().unwrap());
+            .insert("X-Session-Reused", header::HeaderValue::from_static("true"));
 
         return Ok(response);
     }
 
     // No valid session found - do full authentication with Argon2 (slow path)
-    let user = match state.auth_service.authenticate(&username, &password).await {
-        Ok(user) => user,
-        Err(_) => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                [(header::WWW_AUTHENTICATE, "Basic realm=\"Carbon Cache\"")],
-                "Invalid credentials",
-            )
-                .into_response())
-        }
-    };
+    let user = state
+        .auth_service
+        .authenticate(&username, &password)
+        .await
+        .map_err(|_| AuthError::LoginFailed)?;
 
     // Create new session (not get_or_create - we already checked above)
     let (session, session_reused) = match state
@@ -134,16 +102,14 @@ pub async fn auth_middleware(
 
     // Return response with session token and reuse indicator
     let mut response = next.run(request).await;
-    response
-        .headers_mut()
-        .insert("X-Session-Token", session.token.parse().unwrap());
+    if let Ok(value) = session.token.parse() {
+        response.headers_mut().insert("X-Session-Token", value);
+    }
 
     // Transparency header - indicates if session was reused or created
     response.headers_mut().insert(
         "X-Session-Reused",
-        if session_reused { "true" } else { "false" }
-            .parse()
-            .unwrap(),
+        header::HeaderValue::from_static(if session_reused { "true" } else { "false" }),
     );
 
     Ok(response)
@@ -153,20 +119,19 @@ pub async fn auth_middleware(
 /// Checks X-Forwarded-For header first, then X-Real-IP, then connection info
 fn extract_client_ip(request: &Request) -> Option<String> {
     // Try X-Forwarded-For header (proxy/load balancer)
-    if let Some(forwarded_for) = request.headers().get("X-Forwarded-For") {
-        if let Ok(value) = forwarded_for.to_str() {
-            // X-Forwarded-For can contain multiple IPs, take the first one
-            if let Some(ip) = value.split(',').next() {
-                return Some(ip.trim().to_string());
-            }
-        }
+    if let Some(forwarded_for) = request.headers().get("X-Forwarded-For")
+        && let Ok(value) = forwarded_for.to_str()
+        // X-Forwarded-For can contain multiple IPs, take the first one
+        && let Some(ip) = value.split(',').next()
+    {
+        return Some(ip.trim().to_string());
     }
 
     // Try X-Real-IP header (some proxies)
-    if let Some(real_ip) = request.headers().get("X-Real-IP") {
-        if let Ok(value) = real_ip.to_str() {
-            return Some(value.to_string());
-        }
+    if let Some(real_ip) = request.headers().get("X-Real-IP")
+        && let Ok(value) = real_ip.to_str()
+    {
+        return Some(value.to_string());
     }
 
     // Try to get from connection info (direct connection)

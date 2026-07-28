@@ -83,7 +83,7 @@ where
 
         // Eagerly recreate all caches from configs (Option B)
         for config in configs {
-            let store = factory.create_from_config(&config);
+            let store = factory.create_from_config(&config)?;
             let cache_name = config.name.clone();
             let entry = CacheMetadata { config, store };
             manager.cache_registry.insert(cache_name, entry);

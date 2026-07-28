@@ -2,10 +2,12 @@
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("not found")]
-    NotFound,
+    #[error("key not found")]
+    KeyNotFound,
     #[error("cache not found: {0}")]
     CacheNotFound(String),
+    #[error("invalid argument: {0}")]
+    InvalidArgument(String),
     #[error("internal: {0}")]
     Internal(String),
 }

@@ -6,6 +6,7 @@ pub use moka_cache::MokaCache;
 
 use carbon::domain::CacheConfig;
 use carbon::ports::{CacheStore, StorageFactory};
+use shared::{Error, Result};
 use std::sync::Arc;
 use std::{fmt::Debug, hash::Hash};
 
@@ -18,7 +19,7 @@ where
     K: Debug + Hash + Eq + Send + Sync + 'static,
     V: Debug + Send + Sync + Clone + 'static,
 {
-    fn create_from_config(&self, config: &CacheConfig) -> Arc<dyn CacheStore<K, V>> {
+    fn create_from_config(&self, config: &CacheConfig) -> Result<Arc<dyn CacheStore<K, V>>> {
         use carbon::domain::CacheEvictionStrategy;
         use std::time::Duration;
 
@@ -36,34 +37,34 @@ where
                     None
                 };
 
-                Arc::new(MokaCache::new(
+                Ok(Arc::new(MokaCache::new(
                     config.name.clone(),
                     max_entries,
                     default_ttl,
-                ))
+                )))
             }
 
             CacheEvictionStrategy::SizeBounded => {
                 // Create Foyer in-memory cache
-                // Safety: mem_bytes is validated as required for SizeBounded caches
-                Arc::new(FoyerMemoryCache::new(
+                let mem_bytes = config.mem_bytes.ok_or_else(|| {
+                    Error::InvalidArgument("mem_bytes is required for SizeBounded cache".into())
+                })?;
+                Ok(Arc::new(FoyerMemoryCache::new(
                     config.name.clone(),
-                    config.mem_bytes.expect(
-                        "mem_bytes is required for SizeBounded cache and should be validated",
-                    ) as usize,
-                ))
+                    mem_bytes as usize,
+                )))
             }
 
             CacheEvictionStrategy::OverflowToDisk => {
                 // TODO: Implement Foyer hybrid (memory + disk)
                 // For now, fallback to memory-only
-                // Safety: mem_bytes is validated as required for OverflowToDisk caches
-                Arc::new(FoyerMemoryCache::new(
+                let mem_bytes = config.mem_bytes.ok_or_else(|| {
+                    Error::InvalidArgument("mem_bytes is required for OverflowToDisk cache".into())
+                })?;
+                Ok(Arc::new(FoyerMemoryCache::new(
                     config.name.clone(),
-                    config.mem_bytes.expect(
-                        "mem_bytes is required for OverflowToDisk cache and should be validated",
-                    ) as usize,
-                ))
+                    mem_bytes as usize,
+                )))
             }
         }
     }

@@ -69,7 +69,7 @@ pub async fn get_value(
                 ttl_ms_remaining: 0,
             }))
         }
-        Err(shared::Error::NotFound) => Ok(Json(GetResponse {
+        Err(shared::Error::KeyNotFound) => Ok(Json(GetResponse {
             found: false,
             value: String::new(),
             ttl_ms_remaining: 0,

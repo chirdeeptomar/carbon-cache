@@ -2632,6 +2632,7 @@ dependencies = [
  "shared",
  "shared-http",
  "storage-engine",
+ "thiserror 2.0.19",
  "tokio",
  "tokio-stream",
  "tower-http 0.7.0",

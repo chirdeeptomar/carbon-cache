@@ -94,7 +94,16 @@ pub async fn create_cache(
         )
     })?;
 
-    let store = UnifiedStorageFactory.create_from_config(&config);
+    let store = UnifiedStorageFactory.create_from_config(&config).map_err(|err| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ValidationErrorResponse {
+                error: err.to_string(),
+                field: None,
+                details: None,
+            }),
+        )
+    })?;
 
     match state.admin_ops.create_cache(config, store).await {
         Ok(resp) => Ok(Json(CreateCacheResponse {

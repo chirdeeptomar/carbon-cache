@@ -8,17 +8,20 @@ const MAX_SHARDS: u8 = 128; // Max 128 shards
 const DEFAULT_TTL_MS: u64 = 1_800_000; // 30 minutes
 const DEFAULT_SHARDS: u8 = 16; // Default to 16 shards
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum ValidationError {
+    #[error("Missing required field '{field}' for {backend} cache")]
     MissingRequiredField {
         field: &'static str,
         backend: &'static str,
     },
-    InvalidCacheName {
-        reason: &'static str,
-    },
+    #[error("Invalid cache name: {reason}")]
+    InvalidCacheName { reason: &'static str },
+    #[error("Invalid backend type '{0}'. Must be 'ttl', 'size', or 'storage'")]
     InvalidBackendType(String),
+    #[error("Invalid eviction policy '{0}'. Must be 'lru', 'sieve', or 'tinylfu'")]
     InvalidPolicy(String),
+    #[error("Field '{field}' value {value} is out of range (min: {min}, max: {max})")]
     OutOfRange {
         field: &'static str,
         value: u64,
@@ -26,51 +29,6 @@ pub enum ValidationError {
         max: u64,
     },
 }
-
-impl std::fmt::Display for ValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ValidationError::MissingRequiredField { field, backend } => {
-                write!(
-                    f,
-                    "Missing required field '{}' for {} cache",
-                    field, backend
-                )
-            }
-            ValidationError::InvalidCacheName { reason } => {
-                write!(f, "Invalid cache name: {}", reason)
-            }
-            ValidationError::InvalidBackendType(backend) => {
-                write!(
-                    f,
-                    "Invalid backend type '{}'. Must be 'ttl', 'size', or 'storage'",
-                    backend
-                )
-            }
-            ValidationError::InvalidPolicy(policy) => {
-                write!(
-                    f,
-                    "Invalid eviction policy '{}'. Must be 'lru', 'sieve', or 'tinylfu'",
-                    policy
-                )
-            }
-            ValidationError::OutOfRange {
-                field,
-                value,
-                min,
-                max,
-            } => {
-                write!(
-                    f,
-                    "Field '{}' value {} is out of range (min: {}, max: {})",
-                    field, value, min, max
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for ValidationError {}
 
 pub struct CacheConfigFactory;
 

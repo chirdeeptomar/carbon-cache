@@ -12,8 +12,11 @@ use std::sync::Arc;
 /// Port for creating cache storage from configuration
 /// This allows different storage backends to be plugged in
 pub trait StorageFactory<K, V>: Send + Sync + 'static {
-    /// Create a new cache store from configuration
-    fn create_from_config(&self, config: &CacheConfig) -> Arc<dyn CacheStore<K, V>>;
+    /// Create a new cache store from configuration.
+    ///
+    /// Returns `Error::InvalidArgument` when the config is missing a field
+    /// the chosen backend requires (e.g. `mem_bytes` for size-bounded caches).
+    fn create_from_config(&self, config: &CacheConfig) -> Result<Arc<dyn CacheStore<K, V>>>;
 }
 
 /// Port for cache operations (e.g., Foyer)
