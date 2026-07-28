@@ -49,12 +49,25 @@ impl UserRepository for RedbUserRepository {
     }
 
     async fn find_by_username(&self, username: &str) -> Result<Option<User>, AuthError> {
-        let read_txn = self.db.begin_read().map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let by_username = read_txn.open_table(USERS_BY_USERNAME).map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let users = read_txn.open_table(USERS).map_err(|e| AuthError::StorageError(e.to_string()))?;
-        if let Some(id_guard) = by_username.get(username).map_err(|e| AuthError::StorageError(e.to_string()))? {
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let by_username = read_txn
+            .open_table(USERS_BY_USERNAME)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let users = read_txn
+            .open_table(USERS)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        if let Some(id_guard) = by_username
+            .get(username)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?
+        {
             let id = id_guard.value().to_owned();
-            if let Some(data_guard) = users.get(id.as_str()).map_err(|e| AuthError::StorageError(e.to_string()))? {
+            if let Some(data_guard) = users
+                .get(id.as_str())
+                .map_err(|e| AuthError::StorageError(e.to_string()))?
+            {
                 let user: User = serde_json::from_slice(data_guard.value())?;
                 return Ok(Some(user));
             }
@@ -63,9 +76,17 @@ impl UserRepository for RedbUserRepository {
     }
 
     async fn find_by_id(&self, id: &str) -> Result<Option<User>, AuthError> {
-        let read_txn = self.db.begin_read().map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let users = read_txn.open_table(USERS).map_err(|e| AuthError::StorageError(e.to_string()))?;
-        if let Some(data_guard) = users.get(id).map_err(|e| AuthError::StorageError(e.to_string()))? {
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let users = read_txn
+            .open_table(USERS)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        if let Some(data_guard) = users
+            .get(id)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?
+        {
             let user: User = serde_json::from_slice(data_guard.value())?;
             return Ok(Some(user));
         }
@@ -73,10 +94,18 @@ impl UserRepository for RedbUserRepository {
     }
 
     async fn list_all(&self) -> Result<Vec<User>, AuthError> {
-        let read_txn = self.db.begin_read().map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let users = read_txn.open_table(USERS).map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let users = read_txn
+            .open_table(USERS)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
         let mut result = Vec::new();
-        for entry in users.iter().map_err(|e| AuthError::StorageError(e.to_string()))? {
+        for entry in users
+            .iter()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?
+        {
             let (_, v) = entry.map_err(|e| AuthError::StorageError(e.to_string()))?;
             let user: User = serde_json::from_slice(v.value())?;
             result.push(user);
@@ -115,9 +144,17 @@ impl UserRepository for RedbUserRepository {
     }
 
     async fn username_exists(&self, username: &str) -> Result<bool, AuthError> {
-        let read_txn = self.db.begin_read().map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let by_username = read_txn.open_table(USERS_BY_USERNAME).map_err(|e| AuthError::StorageError(e.to_string()))?;
-        Ok(by_username.get(username).map_err(|e| AuthError::StorageError(e.to_string()))?.is_some())
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let by_username = read_txn
+            .open_table(USERS_BY_USERNAME)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        Ok(by_username
+            .get(username)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?
+            .is_some())
     }
 }
 
@@ -159,12 +196,25 @@ impl RoleRepository for RedbRoleRepository {
     }
 
     async fn find_by_name(&self, name: &str) -> Result<Option<Role>, AuthError> {
-        let read_txn = self.db.begin_read().map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let by_name = read_txn.open_table(ROLES_BY_NAME).map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let roles = read_txn.open_table(ROLES).map_err(|e| AuthError::StorageError(e.to_string()))?;
-        if let Some(id_guard) = by_name.get(name).map_err(|e| AuthError::StorageError(e.to_string()))? {
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let by_name = read_txn
+            .open_table(ROLES_BY_NAME)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let roles = read_txn
+            .open_table(ROLES)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        if let Some(id_guard) = by_name
+            .get(name)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?
+        {
             let id = id_guard.value().to_owned();
-            if let Some(data_guard) = roles.get(id.as_str()).map_err(|e| AuthError::StorageError(e.to_string()))? {
+            if let Some(data_guard) = roles
+                .get(id.as_str())
+                .map_err(|e| AuthError::StorageError(e.to_string()))?
+            {
                 let role: Role = serde_json::from_slice(data_guard.value())?;
                 return Ok(Some(role));
             }
@@ -173,9 +223,17 @@ impl RoleRepository for RedbRoleRepository {
     }
 
     async fn find_by_id(&self, id: &str) -> Result<Option<Role>, AuthError> {
-        let read_txn = self.db.begin_read().map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let roles = read_txn.open_table(ROLES).map_err(|e| AuthError::StorageError(e.to_string()))?;
-        if let Some(data_guard) = roles.get(id).map_err(|e| AuthError::StorageError(e.to_string()))? {
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let roles = read_txn
+            .open_table(ROLES)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        if let Some(data_guard) = roles
+            .get(id)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?
+        {
             let role: Role = serde_json::from_slice(data_guard.value())?;
             return Ok(Some(role));
         }
@@ -183,11 +241,19 @@ impl RoleRepository for RedbRoleRepository {
     }
 
     async fn find_by_ids(&self, ids: &[String]) -> Result<Vec<Role>, AuthError> {
-        let read_txn = self.db.begin_read().map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let roles = read_txn.open_table(ROLES).map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let roles = read_txn
+            .open_table(ROLES)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
         let mut result = Vec::new();
         for id in ids {
-            if let Some(data_guard) = roles.get(id.as_str()).map_err(|e| AuthError::StorageError(e.to_string()))? {
+            if let Some(data_guard) = roles
+                .get(id.as_str())
+                .map_err(|e| AuthError::StorageError(e.to_string()))?
+            {
                 let role: Role = serde_json::from_slice(data_guard.value())?;
                 result.push(role);
             }
@@ -196,10 +262,18 @@ impl RoleRepository for RedbRoleRepository {
     }
 
     async fn list_all(&self) -> Result<Vec<Role>, AuthError> {
-        let read_txn = self.db.begin_read().map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let roles = read_txn.open_table(ROLES).map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let roles = read_txn
+            .open_table(ROLES)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
         let mut result = Vec::new();
-        for entry in roles.iter().map_err(|e| AuthError::StorageError(e.to_string()))? {
+        for entry in roles
+            .iter()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?
+        {
             let (_, v) = entry.map_err(|e| AuthError::StorageError(e.to_string()))?;
             let role: Role = serde_json::from_slice(v.value())?;
             result.push(role);
@@ -241,9 +315,17 @@ impl RoleRepository for RedbRoleRepository {
     }
 
     async fn name_exists(&self, name: &str) -> Result<bool, AuthError> {
-        let read_txn = self.db.begin_read().map_err(|e| AuthError::StorageError(e.to_string()))?;
-        let by_name = read_txn.open_table(ROLES_BY_NAME).map_err(|e| AuthError::StorageError(e.to_string()))?;
-        Ok(by_name.get(name).map_err(|e| AuthError::StorageError(e.to_string()))?.is_some())
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        let by_name = read_txn
+            .open_table(ROLES_BY_NAME)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?;
+        Ok(by_name
+            .get(name)
+            .map_err(|e| AuthError::StorageError(e.to_string()))?
+            .is_some())
     }
 }
 

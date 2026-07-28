@@ -8,7 +8,12 @@ use std::sync::Arc;
 #[async_trait]
 pub trait SessionRepository: Send + Sync {
     /// Create a new session for the given user with specified TTL and optional client IP
-    async fn create_session(&self, user: User, ttl_ms: u64, client_ip: Option<String>) -> Result<Session>;
+    async fn create_session(
+        &self,
+        user: User,
+        ttl_ms: u64,
+        client_ip: Option<String>,
+    ) -> Result<Session>;
 
     /// Get a session by token
     async fn get_session(&self, token: &SessionToken) -> Result<User>;
@@ -22,7 +27,12 @@ pub trait SessionRepository: Send + Sync {
     /// Get or create a session for a user (for transparent session management)
     /// If user has existing valid sessions, returns the most recently accessed one
     /// Otherwise creates a new session
-    async fn get_or_create_user_session(&self, user: User, ttl_ms: u64, client_ip: Option<String>) -> Result<Session>;
+    async fn get_or_create_user_session(
+        &self,
+        user: User,
+        ttl_ms: u64,
+        client_ip: Option<String>,
+    ) -> Result<Session>;
 
     /// Get all active sessions for a user
     async fn get_user_sessions(&self, username: &str) -> Result<Vec<Session>>;
@@ -50,8 +60,15 @@ impl<S: SessionRepository> SessionStore<S> {
     }
 
     /// Create a new session for a user with optional client IP
-    pub async fn create_session(&self, user: User, ttl_ms: u64, client_ip: Option<String>) -> Result<Session> {
-        self.repository.create_session(user, ttl_ms, client_ip).await
+    pub async fn create_session(
+        &self,
+        user: User,
+        ttl_ms: u64,
+        client_ip: Option<String>,
+    ) -> Result<Session> {
+        self.repository
+            .create_session(user, ttl_ms, client_ip)
+            .await
     }
 
     /// Validate a session token and return the associated user
@@ -72,8 +89,15 @@ impl<S: SessionRepository> SessionStore<S> {
     /// Get or create a session for a user (transparent session management)
     /// If user has existing valid sessions, returns the most recently accessed one
     /// Otherwise creates a new session
-    pub async fn get_or_create_user_session(&self, user: User, ttl_ms: u64, client_ip: Option<String>) -> Result<Session> {
-        self.repository.get_or_create_user_session(user, ttl_ms, client_ip).await
+    pub async fn get_or_create_user_session(
+        &self,
+        user: User,
+        ttl_ms: u64,
+        client_ip: Option<String>,
+    ) -> Result<Session> {
+        self.repository
+            .get_or_create_user_session(user, ttl_ms, client_ip)
+            .await
     }
 
     /// Get all active sessions for a user

@@ -88,8 +88,8 @@ impl RedbPersistence {
             .map_err(persist_err("open table"))?;
         match table.get(name).map_err(persist_err("get config"))? {
             Some(v) => {
-                let config: CacheConfig = serde_json::from_slice(v.value())
-                    .map_err(persist_err("deserialize config"))?;
+                let config: CacheConfig =
+                    serde_json::from_slice(v.value()).map_err(persist_err("deserialize config"))?;
                 Ok(Some(config))
             }
             None => Ok(None),

@@ -16,9 +16,19 @@ pub const RESP_ERROR: u8 = 0x04;
 #[derive(Debug, Clone)]
 pub enum Request {
     Ping,
-    Put { cache_name: String, key: Bytes, value: Bytes },
-    Get { cache_name: String, key: Bytes },
-    Delete { cache_name: String, key: Bytes },
+    Put {
+        cache_name: String,
+        key: Bytes,
+        value: Bytes,
+    },
+    Get {
+        cache_name: String,
+        key: Bytes,
+    },
+    Delete {
+        cache_name: String,
+        key: Bytes,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -45,7 +55,11 @@ impl Request {
             Request::Ping => {
                 buf.put_u8(CMD_PING);
             }
-            Request::Put { cache_name, key, value } => {
+            Request::Put {
+                cache_name,
+                key,
+                value,
+            } => {
                 buf.put_u8(CMD_PUT);
                 // Encode cache_name
                 let cache_name_bytes = cache_name.as_bytes();
@@ -132,7 +146,11 @@ impl Request {
                 let key = buf.copy_to_bytes(key_len);
                 let value = buf.copy_to_bytes(value_len);
 
-                Ok(Request::Put { cache_name, key, value })
+                Ok(Request::Put {
+                    cache_name,
+                    key,
+                    value,
+                })
             }
             CMD_GET => {
                 // Read cache_name
@@ -314,7 +332,11 @@ mod tests {
         let decoded = Request::decode(encoded).unwrap();
 
         match decoded {
-            Request::Put { cache_name, key, value } => {
+            Request::Put {
+                cache_name,
+                key,
+                value,
+            } => {
                 assert_eq!(cache_name, "test_cache");
                 assert_eq!(key, Bytes::from("hello"));
                 assert_eq!(value, Bytes::from("world"));

@@ -102,7 +102,9 @@ pub async fn start(config: Arc<Config>) -> Result<(), Box<dyn std::error::Error>
                     let ops: Arc<dyn CacheOperations<Vec<u8>, Bytes>> = tcp_node.clone();
                     let raft = tcp_node.clone();
                     tokio::spawn(async move {
-                        if let Err(e) = server_tcp::process_connection(socket, ops, Some(raft)).await {
+                        if let Err(e) =
+                            server_tcp::process_connection(socket, ops, Some(raft)).await
+                        {
                             tracing::warn!("TCP {addr} error: {e:?}");
                         }
                     });

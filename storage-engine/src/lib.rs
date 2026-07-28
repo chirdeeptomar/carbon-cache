@@ -7,8 +7,8 @@ pub use moka_cache::MokaCache;
 use carbon::domain::CacheConfig;
 use carbon::ports::{CacheStore, StorageFactory};
 use shared::{Error, Result};
+use std::hash::Hash;
 use std::sync::Arc;
-use std::{fmt::Debug, hash::Hash};
 
 /// Unified factory for creating cache instances from configuration
 /// Supports Moka, Foyer Memory, and Foyer Hybrid backends
@@ -16,8 +16,8 @@ pub struct UnifiedStorageFactory;
 
 impl<K, V> StorageFactory<K, V> for UnifiedStorageFactory
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    K: Hash + Eq + Send + Sync + 'static,
+    V: Send + Sync + Clone + 'static,
 {
     fn create_from_config(&self, config: &CacheConfig) -> Result<Arc<dyn CacheStore<K, V>>> {
         use carbon::domain::CacheEvictionStrategy;

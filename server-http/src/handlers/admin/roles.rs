@@ -1,11 +1,11 @@
 use crate::middleware::check_permission;
 use crate::state::AppState;
 use axum::{
+    Extension, Json,
     extract::{Path, State},
     http::StatusCode,
-    Extension, Json,
 };
-use carbon::auth::{error::AuthError, models::Role, Permission, User};
+use carbon::auth::{Permission, User, error::AuthError, models::Role};
 use carbon_raft::types::RaftLogEntry;
 use shared_http::api::{
     CreateRoleRequest, ErrorResponse, ListRolesResponse, RoleResponse, UpdateRoleRequest,
@@ -13,7 +13,10 @@ use shared_http::api::{
 use tracing::{error, info};
 
 fn auth_err(e: AuthError) -> (StatusCode, Json<ErrorResponse>) {
-    (StatusCode::BAD_REQUEST, Json(ErrorResponse::new(e.to_string())))
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ErrorResponse::new(e.to_string())),
+    )
 }
 
 fn not_found(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
@@ -21,7 +24,10 @@ fn not_found(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
 }
 
 fn internal(msg: impl ToString) -> (StatusCode, Json<ErrorResponse>) {
-    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse::new(msg.to_string())))
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse::new(msg.to_string())),
+    )
 }
 
 fn requires_cluster_mode() -> (StatusCode, Json<ErrorResponse>) {
@@ -43,7 +49,10 @@ pub async fn create_role(
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
 
-    info!("CREATE_ROLE: name={}, requested_by={}", req.name, current_user.username);
+    info!(
+        "CREATE_ROLE: name={}, requested_by={}",
+        req.name, current_user.username
+    );
 
     let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     if raft.get_role_by_name(&req.name).await.is_some() {
@@ -122,7 +131,10 @@ pub async fn update_role(
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
 
-    info!("UPDATE_ROLE: name={}, requested_by={}", name, current_user.username);
+    info!(
+        "UPDATE_ROLE: name={}, requested_by={}",
+        name, current_user.username
+    );
 
     let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     let mut role = raft
@@ -157,7 +169,10 @@ pub async fn delete_role(
         return Err((e, Json(ErrorResponse::new("Insufficient permissions"))));
     }
 
-    info!("DELETE_ROLE: name={}, requested_by={}", name, current_user.username);
+    info!(
+        "DELETE_ROLE: name={}, requested_by={}",
+        name, current_user.username
+    );
 
     let raft = state.raft_node.as_ref().ok_or_else(requires_cluster_mode)?;
     let role = raft

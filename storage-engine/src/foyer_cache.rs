@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use carbon::domain::response::{DeleteResponse, ExistsResponse, GetResponse, PutResponse};
 use carbon::ports::CacheStore;
-use foyer::{Cache, CacheBuilder};
+use foyer::{Cache, CacheBuilder, Key, Value};
 use shared::{Error, Result};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -10,16 +10,16 @@ use std::sync::Arc;
 /// Foyer-based in-memory cache implementation
 pub struct FoyerMemoryCache<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    K: Key,
+    V: Value,
 {
     cache: Arc<Cache<K, V>>,
 }
 
 impl<K, V> FoyerMemoryCache<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    K: Key,
+    V: Value,
 {
     /// Create a new Foyer in-memory cache with the given memory capacity in bytes
     pub fn new(name: String, mem_bytes: usize) -> Self {
@@ -46,8 +46,8 @@ where
 #[async_trait]
 impl<K, V> CacheStore<K, V> for FoyerMemoryCache<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Send + Sync + Clone + 'static,
+    K: Hash + Eq + Send + Sync + 'static,
+    V: Send + Sync + Clone + 'static,
 {
     async fn put(&self, key: K, val: V) -> Result<PutResponse> {
         self.cache.insert(key, val);

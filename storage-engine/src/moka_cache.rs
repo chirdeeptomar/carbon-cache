@@ -3,7 +3,6 @@ use carbon::domain::response::{DeleteResponse, ExistsResponse, GetResponse, PutR
 use carbon::ports::CacheStore;
 use moka::future::Cache;
 use shared::{Error, Result};
-use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
 
@@ -11,8 +10,8 @@ use std::time::Duration;
 /// Provides lock-free, concurrent cache with optional size bounds and TTL
 pub struct MokaCache<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Clone + Send + Sync + 'static,
+    K: Hash + Eq + Send + Sync + 'static,
+    V: Clone + Send + Sync + 'static,
 {
     cache: Cache<K, V>,
 }
@@ -20,8 +19,8 @@ where
 /// Factory methods for MokaCache
 impl<K, V> MokaCache<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync + 'static,
-    V: Debug + Clone + Send + Sync + 'static,
+    K: Hash + Eq + Send + Sync + 'static,
+    V: Clone + Send + Sync + 'static,
 {
     /// Create a new unbounded Moka cache with optional default TTL
     pub fn new_unbounded(default_ttl: Option<Duration>) -> Self {
@@ -72,8 +71,8 @@ where
 #[async_trait]
 impl<K, V> CacheStore<K, V> for MokaCache<K, V>
 where
-    K: Debug + Hash + Eq + Send + Sync,
-    V: Debug + Clone + Send + Sync,
+    K: Hash + Eq + Send + Sync,
+    V: Clone + Send + Sync,
 {
     async fn put(&self, key: K, val: V) -> Result<PutResponse> {
         self.cache.insert(key, val).await;
@@ -94,20 +93,6 @@ where
 
     async fn exists(&self, key: &K) -> Result<ExistsResponse> {
         Ok(ExistsResponse::new(self.cache.contains_key(key)))
-    }
-}
-
-/// Debug implementation for MokaCache
-impl<K, V> Debug for MokaCache<K, V>
-where
-    K: Debug + Hash + Eq + Send + Sync,
-    V: Debug + Clone + Send + Sync,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MokaCache")
-            .field("entry_count", &self.cache.entry_count())
-            .field("weighted_size", &self.cache.weighted_size())
-            .finish()
     }
 }
 

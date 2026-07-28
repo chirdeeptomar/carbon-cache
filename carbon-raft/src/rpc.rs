@@ -40,7 +40,9 @@ pub enum RaftRpcMessage {
     /// Sent by a node that is shutting down to remove itself from membership.
     /// The receiver (or the leader it redirects to) will call `change_membership`
     /// to remove the departing node from the voter set.
-    Leave { node_id: NodeId },
+    Leave {
+        node_id: NodeId,
+    },
 }
 
 /// Responses returned over the Raft RPC channel.
@@ -55,7 +57,11 @@ pub enum RaftRpcResponse {
     Left,
     /// The receiver is not the leader. The caller should retry the request
     /// at `leader_addr` (the leader's `raft_addr`).
-    NotLeader { leader_addr: String },
+    NotLeader {
+        leader_addr: String,
+    },
     /// An unexpected error occurred; the message describes the cause.
-    Error { message: String },
+    Error {
+        message: String,
+    },
 }

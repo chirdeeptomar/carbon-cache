@@ -24,10 +24,7 @@ fn build_or_fallback(builder: axum::http::response::Builder, body: Body) -> Resp
 
 /// Forward the given request to the leader. Returns the leader's response
 /// as an axum `Response<Body>`, or a 503 if no leader is known.
-pub async fn forward_to_leader(
-    node: &Arc<RaftCacheNode>,
-    req: Request<Body>,
-) -> Response<Body> {
+pub async fn forward_to_leader(node: &Arc<RaftCacheNode>, req: Request<Body>) -> Response<Body> {
     let leader = match node.get_leader_node() {
         Some(n) => n,
         None => {
@@ -49,7 +46,12 @@ pub async fn forward_to_leader(
         .unwrap_or("");
     let url = format!("http://{host}{path_and_query}");
 
-    info!("Forwarding {} {} to leader at {}", req.method(), path_and_query, host);
+    info!(
+        "Forwarding {} {} to leader at {}",
+        req.method(),
+        path_and_query,
+        host
+    );
 
     let method = req.method().clone();
     let headers = req.headers().clone();

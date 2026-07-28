@@ -86,7 +86,8 @@ impl RaftNetwork<TypeConfig> for CarbonRaftNetwork {
         &mut self,
         req: AppendEntriesRequest<TypeConfig>,
         _opt: RPCOption,
-    ) -> Result<AppendEntriesResponse<NodeId>, RPCError<NodeId, CarbonNode, RaftError<NodeId>>> {
+    ) -> Result<AppendEntriesResponse<NodeId>, RPCError<NodeId, CarbonNode, RaftError<NodeId>>>
+    {
         match self.send(&RaftRpcMessage::AppendEntries(req)).await {
             Ok(RaftRpcResponse::AppendEntries(resp)) => Ok(resp),
             Ok(other) => Err(RPCError::Network(openraft::error::NetworkError::new(

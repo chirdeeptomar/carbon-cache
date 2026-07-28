@@ -39,19 +39,32 @@ impl std::fmt::Display for CarbonNode {
 pub enum RaftLogEntry {
     // Cache control plane
     CreateCache(CacheConfig),
-    DropCache { name: String },
+    DropCache {
+        name: String,
+    },
 
     // Cache data plane — writes only
-    Put { cache_name: String, key: Vec<u8>, value: Vec<u8> },
-    Delete { cache_name: String, key: Vec<u8> },
+    Put {
+        cache_name: String,
+        key: Vec<u8>,
+        value: Vec<u8>,
+    },
+    Delete {
+        cache_name: String,
+        key: Vec<u8>,
+    },
 
     // Auth control plane
     CreateUser(User),
     UpdateUser(User),
-    DeleteUser { id: String },
+    DeleteUser {
+        id: String,
+    },
     CreateRole(Role),
     UpdateRole(Role),
-    DeleteRole { id: String },
+    DeleteRole {
+        id: String,
+    },
 }
 
 /// The value returned to the caller after a log entry is applied.

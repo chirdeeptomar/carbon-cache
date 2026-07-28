@@ -44,8 +44,7 @@ pub async fn auth_middleware(
     }
 
     // Fallback to Basic Auth (slow path)
-    let (username, password) =
-        extract_basic_auth(auth_header).ok_or(AuthError::MalformedHeader)?;
+    let (username, password) = extract_basic_auth(auth_header).ok_or(AuthError::MalformedHeader)?;
 
     // Extract client IP address from headers or connection info
     let client_ip = extract_client_ip(&request);

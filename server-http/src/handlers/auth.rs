@@ -1,9 +1,9 @@
 use axum::{
     extract::State,
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::{IntoResponse, Json},
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use carbon::auth::{AuthService, MokaSessionRepository, SessionStore};
 use shared_http::api::{LoginRequest, LoginResponse, LogoutResponse};
 use std::sync::Arc;

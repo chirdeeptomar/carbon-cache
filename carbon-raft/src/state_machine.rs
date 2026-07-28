@@ -88,6 +88,9 @@ impl CacheStateMachine {
     }
 
     pub fn get_roles_by_ids(&self, ids: &[String]) -> Vec<Role> {
-        ids.iter().filter_map(|id| self.roles.get(id)).cloned().collect()
+        ids.iter()
+            .filter_map(|id| self.roles.get(id))
+            .cloned()
+            .collect()
     }
 }
