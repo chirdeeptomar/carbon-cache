@@ -1,7 +1,7 @@
-use argon2::password_hash::rand_core::OsRng;
+use argon2::PasswordHash;
 use argon2::{
     Argon2,
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{PasswordHasher, PasswordVerifier},
 };
 
 use super::error::AuthError;
@@ -10,11 +10,10 @@ use super::error::AuthError;
 pub fn hash_password(password: &str) -> Result<String, AuthError> {
     validate_password_strength(password)?;
 
-    let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
 
     argon2
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map(|hash| hash.to_string())
         .map_err(|e| AuthError::PasswordHashError(e.to_string()))
 }

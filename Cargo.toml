@@ -13,11 +13,11 @@ members = [
 
 [workspace.dependencies]
 # Async runtime and utilities
-tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.53.2", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7.19", features = ["codec"] }
 tokio-stream = { version = "0.1.19", features = ["sync"] }
-async-trait = "0.1.91"
-futures = "0.3.33"
+async-trait = "0.1.92"
+futures = "0.3.34"
 
 # Serialization
 serde = { version = "1.0.229", features = ["derive"] }
@@ -26,7 +26,7 @@ serde_bytes = "0.11"
 
 # Web frameworks
 axum = "0.8.9"
-tower-http = { version = "0.7.0", features = [
+tower-http = { version = "0.7.1", features = [
     "trace",
     "cors",
     "normalize-path",
@@ -39,32 +39,32 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # Data structures and utilities
 bytes = "1.12.1"
 dashmap = "6.2.1"
-base64 = "0.23.0"
+base64 = "0.23.1"
 chrono = { version = "0.4.45", features = ["serde"] }
-uuid = { version = "1.24.0", features = ["v4", "serde", "js"] }
+uuid = { version = "1.27.0", features = ["v4", "serde", "js"] }
 
 # Caching
-moka = { version = "0.12.15", features = ["future"] }
-foyer = "0.22.3"
+moka = { version = "0.12.16", features = ["future"] }
+foyer = "0.22.6"
 
 # Storage
-redb = "4.1.0"
+redb = "4.3.0"
 
 # Distributed consensus
-openraft = { version = "0.9", features = ["serde"] }
+openraft = { version = "0.9.25", features = ["serde"] }
 
 # Error handling
-thiserror = "2.0.19"
+thiserror = "2.0.21"
 
 # Security
-argon2 = { version = "0.5", features = ["std"] }
+argon2 = { version = "0.6.0" }
 
 # Random number generation
-rand = "0.10.2"
+rand = "0.10.3"
 rand_core = "0.10.1"
 
 # HTTP client (for leader-forwarding in cluster mode)
-reqwest = { version = "0.13.4", features = ["json"] }
+reqwest = { version = "0.13.5", features = ["json"] }
 
 # Configuration
 dotenvy = "0.15"
