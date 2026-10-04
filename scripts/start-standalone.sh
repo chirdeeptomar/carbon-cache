@@ -14,7 +14,7 @@
 
 set -e
 
-BINARY="./target/debug/carbon-server"
+BINARY="./target/release/carbon-server"
 
 : "${CARBON_MODE:=standalone}"
 : "${CARBON_HOST:=localhost}"
@@ -32,8 +32,8 @@ export CARBON_DATA_DIR
 export CARBON_ADMIN_USERNAME
 export CARBON_ADMIN_PASSWORD
 
-echo "==> Building carbon-server (debug)..."
-cargo build -p carbon-server
+echo "==> Building carbon-server..."
+cargo build -p carbon-server --release
 
 echo ""
 echo "==> Starting Carbon in standalone mode"
